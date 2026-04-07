@@ -4,7 +4,7 @@
          "0.1.0"
          "Agile GTD workflow for Org")
 
-(website-url "https://github.com/stfl/doom.d")
+(website-url "https://github.com/stfl/agile-gtd")
 (keywords "outlines" "calendar" "tools")
 (package-file "agile-gtd.el")
 
