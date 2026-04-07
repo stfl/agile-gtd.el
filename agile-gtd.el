@@ -733,7 +733,7 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
                (org-agenda-archives-mode t)
                (org-agenda-start-with-log-mode '(closed))
                (org-agenda-show-log 'logcheck)
-               (org-agenda-skip-function '(org-agenda-skip-entry-if 'notregexp "^.*DONE "))))))
+               (org-agenda-skip-function '(org-agenda-skip-entry-if 'notregexp "^.*DONE ")))))) ;; FIXME also show logs for items even if not closed)
     ("r" . "Review")
     ("rc" "Close open NEXT Actions and WAIT"
      ((org-ql-block `(and (todo ,@(agile-gtd--action-keywords))
