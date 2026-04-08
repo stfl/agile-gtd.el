@@ -67,3 +67,29 @@
         (ert-info ((format "prio=%S parent=%S dl-delta=%S" prio parent-prio dl-delta))
           (should (= (agile-gtd--backlog-rank prio parent-prio dl-delta)
                      expected)))))))
+
+(ert-deftest agile-gtd-backlog-rank-scheduled-cases ()
+  "SC-DELTA only affects rank when <= 0 (today or overdue)."
+  (let ((cases '(;; sc overdue: pulls rank negative
+                 (nil nil nil -10 -10)
+                 ;; sc today: deadline-rank(0) = -1
+                 (nil nil nil   0  -1)
+                 ;; sc future: ignored → default
+                 (nil nil nil   3  49)
+                 (nil nil nil  90  49)
+                 ;; dl approaching + sc future: dl wins, sc ignored
+                 (nil nil   5   3  10)
+                 (nil nil  10   3  30)
+                 ;; dl approaching + sc far future: dl wins
+                 (nil nil   3  10  10)
+                 ;; sc overdue beats approaching deadline
+                 (nil nil   5  -5  -5)
+                 ;; priority A + sc today: sc (rank -1) beats A (rank 1)
+                 (?A  nil nil   0  -1)
+                 ;; priority A + sc future: priority wins, sc ignored
+                 (?A  nil nil   3   1))))
+    (dolist (case cases)
+      (cl-destructuring-bind (prio parent-prio dl-delta sc-delta expected) case
+        (ert-info ((format "prio=%S parent=%S dl=%S sc=%S" prio parent-prio dl-delta sc-delta))
+          (should (= (agile-gtd--backlog-rank prio parent-prio dl-delta sc-delta)
+                     expected)))))))

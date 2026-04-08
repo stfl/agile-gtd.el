@@ -500,14 +500,19 @@ With default ?E (rank 41) this yields 49, sitting between E (40..48) and F (50+)
   (let ((r (agile-gtd--prio-rank agile-gtd-priority-default)))
     (+ (* 10 (/ r 10)) 9)))
 
-(defun agile-gtd--backlog-rank (prio parent-prio dl-delta)
+(defun agile-gtd--backlog-rank (prio parent-prio dl-delta &optional sc-delta)
   "Return numeric backlog rank.
 PRIO and PARENT-PRIO are priority characters or nil.
-DL-DELTA is integer days until deadline or nil."
+DL-DELTA and SC-DELTA are integer days until deadline/scheduled, or nil.
+SC-DELTA only influences rank when <= 0 (today or overdue); future
+scheduled dates are ignored."
   (let* ((own      (or (agile-gtd--prio-rank prio)        agile-gtd--rank-inf))
          (par      (or (agile-gtd--prio-rank parent-prio) agile-gtd--rank-inf))
          (dl       (if dl-delta (agile-gtd--deadline-rank dl-delta) agile-gtd--rank-inf))
-         (combined (min own par dl)))
+         (sc       (if (and sc-delta (<= sc-delta 0))
+                       (agile-gtd--deadline-rank sc-delta)
+                     agile-gtd--rank-inf))
+         (combined (min own par dl sc)))
     (if (>= combined agile-gtd--rank-inf) (agile-gtd--rank-default) combined)))
 
 (defun agile-gtd--deadline-window (priority)
@@ -1036,14 +1041,15 @@ An entry qualifies when any of the following hold:
 
 (defun agile-gtd--item-rank ()
   "Return the virtual priority rank for the Org item at point."
-  (let* ((element (org-element-at-point))
-         (prio (org-element-property :priority element))
+  (let* ((element     (org-element-at-point))
+         (prio        (org-element-property :priority element))
          (parent-prio (agile-gtd--direct-parent-priority))
-         (dl (org-element-property :deadline element))
-         (dl-delta (when dl
-                     (- (time-to-days (org-timestamp-to-time dl))
-                        (time-to-days (current-time))))))
-    (agile-gtd--backlog-rank prio parent-prio dl-delta)))
+         (dl          (org-element-property :deadline  element))
+         (sc          (org-element-property :scheduled element))
+         (today       (time-to-days (current-time)))
+         (dl-delta    (when dl (- (time-to-days (org-timestamp-to-time dl)) today)))
+         (sc-delta    (when sc (- (time-to-days (org-timestamp-to-time sc)) today))))
+    (agile-gtd--backlog-rank prio parent-prio dl-delta sc-delta)))
 
 (defun agile-gtd--item-rank< (a b)
   "Return non-nil if element A has a lower rank than element B.
@@ -1076,24 +1082,26 @@ This is the inverse of `agile-gtd--prio-rank'."
   (let* ((element     (org-element-at-point))
          (prio        (org-element-property :priority element))
          (parent-prio (agile-gtd--direct-parent-priority))
-         (dl          (org-element-property :deadline element))
-         (dl-delta    (when dl
-                        (- (time-to-days (org-timestamp-to-time dl))
-                           (time-to-days (current-time)))))
-         (rank        (agile-gtd--backlog-rank prio parent-prio dl-delta))
+         (dl          (org-element-property :deadline  element))
+         (sc          (org-element-property :scheduled element))
+         (today       (time-to-days (current-time)))
+         (dl-delta    (when dl (- (time-to-days (org-timestamp-to-time dl)) today)))
+         (sc-delta    (when sc (- (time-to-days (org-timestamp-to-time sc)) today)))
+         (rank        (agile-gtd--backlog-rank prio parent-prio dl-delta sc-delta))
          (prio-str    (if prio (char-to-string prio) "none"))
          (par-str     (if parent-prio (char-to-string parent-prio) "none"))
-         (dl-str      (if dl-delta
-                          (let* ((dl-rank  (agile-gtd--deadline-rank dl-delta))
-                                 (dl-pchar (agile-gtd--rank-to-prio-char dl-rank))
-                                 (sign     (if (>= dl-delta 0) "+" ""))
-                                 (band     (if dl-pchar
-                                               (format " (%c)" dl-pchar)
-                                             " (overdue)")))
-                            (format "%s%dd%s" sign dl-delta band))
-                        "none")))
-    (message "Rank: %d  (Priority: %s  Parent Priority: %s  Deadline: %s)"
-             rank prio-str par-str dl-str)))
+         (date-str    (lambda (delta)
+                        (if delta
+                            (let* ((r     (agile-gtd--deadline-rank delta))
+                                   (pchar (agile-gtd--rank-to-prio-char r))
+                                   (sign  (if (>= delta 0) "+" ""))
+                                   (band  (if pchar (format " (%c)" pchar) " (overdue)")))
+                              (format "%s%dd%s" sign delta band))
+                          "none"))))
+    (message "Rank: %d  (Priority: %s  Parent: %s  Deadline: %s  Scheduled: %s)"
+             rank prio-str par-str
+             (funcall date-str dl-delta)
+             (funcall date-str sc-delta))))
 
 ;;;###autoload
 (defun agile-gtd-rank ()
