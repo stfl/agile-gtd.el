@@ -246,16 +246,16 @@ properties.
 The common pattern is:
 
 #+begin_example
-* PROJ Build release
-** NEXT Write changelog
+ * PROJ Build release
+ ** NEXT Write changelog
    :PROPERTIES:
    :TRIGGER: next-sibling todo!(NEXT)
    :END:
-** TODO Tag commit
+ ** TODO Tag commit
    :PROPERTIES:
    :BLOCKER: previous-sibling
    :END:
-** TODO Publish
+ ** TODO Publish
    :PROPERTIES:
    :BLOCKER: previous-sibling
    :END:
