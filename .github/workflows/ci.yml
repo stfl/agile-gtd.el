@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Emacs ${{ matrix.emacs-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs-version:
+          - "29.4"
+          - "30.2"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Emacs ${{ matrix.emacs-version }}
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs-version }}
+
+      - name: Install Eask
+        uses: emacs-eask/setup-eask@master
+        with:
+          version: snapshot
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Byte-compile
+        run: just build
+
+      - name: Lint
+        run: just lint
+
+      - name: Run ERT tests
+        run: just test
