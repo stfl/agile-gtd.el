@@ -1,9 +1,16 @@
 ;;; agile-gtd.el --- Agile GTD workflow for Org -*- lexical-binding: t; -*-
 
 ;; Version: 0.1.0
-;; URL: https://github.com/stfl/doom.d
+;; URL: https://github.com/stfl/agile-gtd
 ;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (ts "0.3") (org-edna "1.1.2"))
 ;; Keywords: outlines, calendar, tools
+
+;;; Commentary:
+
+;; Agile GTD workflow for Org-mode.  Provides priority-based ranking, sprint
+;; planning, backlog management, and agenda views using org-ql.
+
+;;; Code:
 
 (require 'cl-lib)
 (require 'dash)
@@ -1128,8 +1135,7 @@ This is the inverse of `agile-gtd--prio-rank'."
 (defun agile-gtd--apply-org-modern-visuals ()
   "Apply Agile GTD org-modern visuals."
   (when agile-gtd-enable-org-modern-visuals
-    (with-eval-after-load 'org-modern
-      (setq org-modern-priority (agile-gtd--priority-symbols)))))
+    (setq org-modern-priority (agile-gtd--priority-symbols))))
 
 (defun agile-gtd--apply-todo-keywords ()
   "Apply Agile GTD TODO keywords and faces."
