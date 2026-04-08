@@ -133,11 +133,6 @@ Each entry is a plist with:
   :type 'string
   :group 'agile-gtd)
 
-(defcustom agile-gtd-inbox-orgzly-file "inbox-orgzly.org"
-  "Orgzly inbox file relative to `org-directory'."
-  :type 'string
-  :group 'agile-gtd)
-
 (defcustom agile-gtd-todo-file "todo.org"
   "Todo file relative to `org-directory'."
   :type 'string
@@ -380,7 +375,6 @@ When nil, derive it from `agile-gtd-priority-default'."
   (mapcar #'agile-gtd--expand-org-path
           (cl-remove-duplicates
            (append (list agile-gtd-inbox-file
-                         agile-gtd-inbox-orgzly-file
                          agile-gtd-todo-file)
                    (agile-gtd--project-files))
            :test #'equal)))
