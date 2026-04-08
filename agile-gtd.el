@@ -118,13 +118,13 @@
   :type 'string
   :group 'agile-gtd)
 
-(defcustom agile-gtd-customers nil
-  "List of configured work customers.
+(defcustom agile-gtd-projects nil
+  "List of configured projects.
 Each entry is a plist with:
-  :tag  - org tag string identifying this customer (required)
+  :tag  - org tag string identifying this project (required)
   :name - display name (defaults to value of :tag)
   :file - org file relative to `org-directory' (defaults to :tag \".org\")
-  :key  - single character for agenda key binding and tag-alist (required)"
+  :key  - single character for agenda key binding and tag-alist (optional, nil means no binding)"
   :type '(repeat (plist :key-type keyword :value-type sexp))
   :group 'agile-gtd)
 
@@ -141,11 +141,6 @@ Each entry is a plist with:
 (defcustom agile-gtd-todo-file "todo.org"
   "Todo file relative to `org-directory'."
   :type 'string
-  :group 'agile-gtd)
-
-(defcustom agile-gtd-project-files nil
-  "Project files relative to `org-directory'."
-  :type '(repeat string)
   :group 'agile-gtd)
 
 (defcustom agile-gtd-diary-file "diary.org"
@@ -279,20 +274,20 @@ When nil, derive it from `agile-gtd-priority-default'."
       (error "Priority %s is outside the configured Agile GTD range"
              priority))))
 
-(defun agile-gtd--customer-tag (c)
-  "Return the tag for customer C."
+(defun agile-gtd--project-tag (c)
+  "Return the tag for project C."
   (plist-get c :tag))
 
-(defun agile-gtd--customer-name (c)
-  "Return the display name for customer C."
+(defun agile-gtd--project-name (c)
+  "Return the display name for project C."
   (or (plist-get c :name) (plist-get c :tag)))
 
-(defun agile-gtd--customer-file (c)
-  "Return the org file for customer C."
+(defun agile-gtd--project-file (c)
+  "Return the org file for project C."
   (or (plist-get c :file) (concat (plist-get c :tag) ".org")))
 
-(defun agile-gtd--customer-key (c)
-  "Return the key character for customer C."
+(defun agile-gtd--project-key (c)
+  "Return the key character for project C, or nil if none."
   (plist-get c :key))
 
 (defun agile-gtd--workflow-tag-alist ()
@@ -376,19 +371,18 @@ When nil, derive it from `agile-gtd-priority-default'."
   "Expand FILE relative to `org-directory'."
   (expand-file-name file org-directory))
 
-(defun agile-gtd--customer-files ()
-  "Return the list of customer files derived from `agile-gtd-customers'."
-  (mapcar #'agile-gtd--customer-file agile-gtd-customers))
+(defun agile-gtd--project-files ()
+  "Return the list of project files derived from `agile-gtd-projects'."
+  (mapcar #'agile-gtd--project-file agile-gtd-projects))
 
-(defun agile-gtd--agenda-files ()
-  "Return the agenda files managed by Agile GTD."
+(defun agile-gtd--managed-agenda-files ()
+  "Return the agenda files directly managed by Agile GTD."
   (mapcar #'agile-gtd--expand-org-path
           (cl-remove-duplicates
            (append (list agile-gtd-inbox-file
                          agile-gtd-inbox-orgzly-file
                          agile-gtd-todo-file)
-                   agile-gtd-project-files
-                   (agile-gtd--customer-files))
+                   (agile-gtd--project-files))
            :test #'equal)))
 
 (defun agile-gtd--someday-files ()
@@ -701,13 +695,13 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
       `(and (agile-gtd-stuck-proj) ,tag-filter)
     '(agile-gtd-stuck-proj)))
 
-(defun agile-gtd--customer-agenda-commands ()
-  "Return agenda commands for each configured customer."
+(defun agile-gtd--project-agenda-commands ()
+  "Return agenda commands for each project that has a :key defined."
   (mapcar
-   (lambda (customer)
-     (let* ((tag  (agile-gtd--customer-tag customer))
-            (name (agile-gtd--customer-name customer))
-            (key  (char-to-string (agile-gtd--customer-key customer)))
+   (lambda (project)
+     (let* ((tag  (agile-gtd--project-tag project))
+            (name (agile-gtd--project-name project))
+            (key  (char-to-string (agile-gtd--project-key project)))
             (filt `(tags ,tag)))
        `(,(concat "w" key) ,(format "%s Agenda" name)
          (,(agile-gtd--agenda-day (list (concat "+" tag)))
@@ -717,7 +711,7 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
           (org-ql-block ',(agile-gtd-agenda-query-next-actions filt nil t)
                         ((org-ql-block-header "Next Actions")
                          (org-super-agenda-groups ',(agile-gtd-rank-groups))))))))
-   agile-gtd-customers))
+   (cl-remove-if-not #'agile-gtd--project-key agile-gtd-projects)))
 
 (defun agile-gtd--agenda-custom-commands ()
   "Return the Agile GTD agenda commands."
@@ -827,7 +821,7 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
                     ((org-ql-block-header "Stuck Projects")
                      (org-super-agenda-header-separator "")
                      (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
-    ,@(agile-gtd--customer-agenda-commands)))
+    ,@(agile-gtd--project-agenda-commands)))
 
 (defun agile-gtd--agenda-someday-p ()
   "Return non-nil when the current agenda item is tagged as someday."
@@ -1151,10 +1145,10 @@ This is the inverse of `agile-gtd--prio-rank'."
           ("KILL" . agile-gtd-todo-cancel))))
 
 (defun agile-gtd--apply-tags ()
-  "Apply Agile GTD workflow tags and customer tags."
+  "Apply Agile GTD workflow tags and project tags."
   (let* ((workflow-tags (agile-gtd--workflow-tag-alist))
-         (customer-tag-names (mapcar #'agile-gtd--customer-tag agile-gtd-customers))
-         (managed-names (append (agile-gtd--workflow-tag-names) customer-tag-names))
+         (project-tag-names (mapcar #'agile-gtd--project-tag agile-gtd-projects))
+         (managed-names (append (agile-gtd--workflow-tag-names) project-tag-names))
          (current-tags (agile-gtd--delete-sublist workflow-tags org-tag-alist)))
     (setq org-tag-alist
           (append
@@ -1164,10 +1158,10 @@ This is the inverse of `agile-gtd--prio-rank'."
                                 (member (car entry) managed-names)))
                          current-tags)
            workflow-tags))
-    ;; Customer tags
-    (dolist (customer agile-gtd-customers)
-      (let ((tag (agile-gtd--customer-tag customer))
-            (key (agile-gtd--customer-key customer)))
+    ;; Project tags — only add key binding when :key is non-nil
+    (dolist (project agile-gtd-projects)
+      (let ((tag (agile-gtd--project-tag project))
+            (key (agile-gtd--project-key project)))
         (when (and tag key)
           (cl-pushnew (cons tag key) org-tag-alist
                       :test (lambda (a b) (equal (car a) (car b)))))))))
@@ -1183,10 +1177,12 @@ This is the inverse of `agile-gtd--prio-rank'."
           org-refile-allow-creating-parent-nodes 'confirm)))
 
 (defun agile-gtd--apply-agenda-files ()
-  "Apply Agile GTD agenda file settings."
+  "Merge Agile GTD managed files into `org-agenda-files'."
   (when agile-gtd-enable-agenda-files
     (setq org-agenda-diary-file (agile-gtd--expand-org-path agile-gtd-diary-file)
-          org-agenda-files (agile-gtd--agenda-files))))
+          org-agenda-files (cl-union org-agenda-files
+                                     (agile-gtd--managed-agenda-files)
+                                     :test #'equal))))
 
 (defun agile-gtd--apply-capture-templates ()
   "Apply Agile GTD capture templates."
