@@ -64,6 +64,10 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with four companion te
 - `agile-gtd-trigger-next-sibling` / `agile-gtd-blocker-previous-sibling` wire up task-chaining via org-edna triggers/blockers
 - `agile-gtd-chain-task` sets both properties on the current heading
 
+### Documentation
+
+When making any code changes, update `README.org` to reflect them.
+
 ### Test conventions
 
 Tests live in `test/` and are split by concern:
