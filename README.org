@@ -79,22 +79,32 @@ Priority is not only local:
 - by default, low-end priorities are treated as deep backlog and are hidden from
   normal today and sprint views.
 
-* Deadline Priorities
+* Deadline and Scheduled Priorities
 
-The position on the backlog also depends on the =DEADLINE= of a task.
+The position on the backlog also depends on the =DEADLINE= and =SCHEDULED= dates
+of a task.  Both are mapped to an effective priority using the same table:
 
-| Dealine | Priority |
-|---------+----------|
-| <0      | overdue  |
-| =0      | today    |
-| <=2     | A        |
-| <=5     | B        |
-| <=7     | C        |
-| <=11    | D        |
-| <=14    | E        |
-| <=21    | F        |
-| <=30    | G        |
-| <=60    | H        |
+| Days    | Effective priority |
+|---------+--------------------|
+| <0      | overdue            |
+| =0      | today              |
+| <=2     | A                  |
+| <=5     | B                  |
+| <=7     | C                  |
+| <=11    | D                  |
+| <=14    | E                  |
+| <=21    | F                  |
+| <=30    | G                  |
+| <=60    | H                  |
+
+=DEADLINE= affects rank for any future date (it pulls items upward as the
+deadline approaches).
+
+=SCHEDULED= only affects rank when it is today or overdue (delta ≤ 0).
+A future =SCHEDULED= date does not change the rank — the item is simply not
+yet due and remains sorted by its explicit priority alone.  This matches the
+query behaviour: items scheduled in the future are excluded from next-action
+views entirely.
 
 * Tags
 
