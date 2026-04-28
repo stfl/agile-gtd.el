@@ -366,7 +366,7 @@ When nil, derive it from `agile-gtd-priority-default'."
   "Expand FILE relative to `org-directory'."
   (expand-file-name file org-directory))
 
-(defun agile-gtd--project-files ()
+(defun agile-gtd-project-files ()
   "Return the list of project files derived from `agile-gtd-projects'."
   (mapcar #'agile-gtd--project-file agile-gtd-projects))
 
@@ -376,7 +376,7 @@ When nil, derive it from `agile-gtd-priority-default'."
           (cl-remove-duplicates
            (append (list agile-gtd-inbox-file
                          agile-gtd-todo-file)
-                   (agile-gtd--project-files))
+                   (agile-gtd-project-files))
            :test #'equal)))
 
 (defun agile-gtd--someday-files ()
