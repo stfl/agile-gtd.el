@@ -240,33 +240,33 @@ Excludes done items and plain (stateless) section headings."
 
 ;;; Customer agenda command tests
 
-(ert-deftest agile-gtd-customer-agenda-commands-generated ()
-  "Customer agenda commands are generated for each configured customer."
+(ert-deftest agile-gtd-project-agenda-commands-generated ()
+  "Project agenda commands are generated for each configured project."
   (agile-gtd-agenda-test-with-data
-   (let ((agile-gtd-customers '((:tag "acme" :name "ACME Corp" :key ?a)
-                                 (:tag "globex" :name "Globex" :key ?g))))
-     (let ((cmds (agile-gtd--customer-agenda-commands)))
+   (let ((agile-gtd-projects '((:tag "acme" :name "ACME Corp" :key ?a)
+                                (:tag "globex" :name "Globex" :key ?g))))
+     (let ((cmds (agile-gtd--project-agenda-commands)))
        (should (= (length cmds) 2))
        (should (equal (caar cmds) "wa"))
        (should (equal (caadr cmds) "wg"))
        (should (string-match-p "ACME Corp" (cadar cmds)))
        (should (string-match-p "Globex" (car (cdar (cdr cmds)))))))))
 
-(ert-deftest agile-gtd-customer-tags-added-to-tag-alist ()
-  "Customer tags appear in org-tag-alist after refresh."
+(ert-deftest agile-gtd-project-tags-added-to-tag-alist ()
+  "Project tags appear in org-tag-alist after refresh."
   (agile-gtd-agenda-test-with-data
-   (let ((agile-gtd-customers '((:tag "acme" :name "ACME" :key ?a)
-                                 (:tag "globex" :name "Globex" :key ?g))))
+   (let ((agile-gtd-projects '((:tag "acme" :name "ACME" :key ?a)
+                                (:tag "globex" :name "Globex" :key ?g))))
      (agile-gtd-refresh)
      (should (assoc "acme" org-tag-alist))
      (should (equal (cdr (assoc "acme" org-tag-alist)) ?a))
      (should (assoc "globex" org-tag-alist))
      (should (equal (cdr (assoc "globex" org-tag-alist)) ?g)))))
 
-(ert-deftest agile-gtd-customer-tags-not-duplicated ()
-  "Customer tags are not duplicated across multiple refreshes."
+(ert-deftest agile-gtd-project-tags-not-duplicated ()
+  "Project tags are not duplicated across multiple refreshes."
   (agile-gtd-agenda-test-with-data
-   (let ((agile-gtd-customers '((:tag "acme" :name "ACME" :key ?a))))
+   (let ((agile-gtd-projects '((:tag "acme" :name "ACME" :key ?a))))
      (agile-gtd-refresh)
      (agile-gtd-refresh)
      (should (= 1 (cl-count "acme" org-tag-alist :key #'car-safe :test #'equal))))))
@@ -396,8 +396,7 @@ Uses today's date so the scheduled items appear in the day block."
 BODY executes with `agenda-text' bound to the resulting agenda buffer's text."
   (declare (indent 1) (debug t))
   `(agile-gtd-org-ql-test-with-sandbox
-    (let* ((agile-gtd-project-files '("agenda-integration.org"))
-           (file (expand-file-name "agenda-integration.org" org-directory))
+    (let* ((file (expand-file-name "agenda-integration.org" org-directory))
            (org-agenda-window-setup 'current-window))
       (with-temp-file file
         (insert (agile-gtd-agenda-integration-test-org-data)))

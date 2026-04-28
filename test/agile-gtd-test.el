@@ -31,8 +31,7 @@
           (org-priority-lowest ?C)
           (org-priority-faces nil)
           (org-modern-priority nil)
-          (agile-gtd-customers nil)
-          (agile-gtd-project-files '("projects.org"))
+          (agile-gtd-projects nil)
           (agile-gtd-enable-agenda-files t)
           (agile-gtd-enable-refile-targets t)
           (agile-gtd-enable-org-modern-visuals t))
@@ -44,31 +43,31 @@
 
 (ert-deftest agile-gtd-enable-applies-core-settings ()
   (agile-gtd-test-with-sandbox
-    (agile-gtd-enable)
-    (should org-super-agenda-mode)
-    (should (equal org-agenda-files
-                   (mapcar (lambda (file)
-                             (expand-file-name file org-directory))
-                           '("inbox.org"
-                             "inbox-orgzly.org"
-                             "todo.org"
-                             "projects.org"))))
-    (should (equal org-agenda-diary-file
-                   (expand-file-name "diary.org" org-directory)))
-    (should (= org-priority-highest agile-gtd-priority-highest))
-    (should (= org-priority-default agile-gtd-priority-default))
-    (should (= org-priority-lowest agile-gtd-priority-lowest))
-    (should (equal org-priority-faces (agile-gtd--priority-faces)))
-    (should (equal org-modern-priority (agile-gtd--priority-symbols)))
-    (should (equal org-todo-keywords agile-gtd-todo-keywords))
-    (should (equal org-todo-repeat-to-state agile-gtd-todo-repeat-to-state))
-    (should (equal org-refile-targets
-                   '((nil :maxlevel . 9)
-                     (org-agenda-files :maxlevel . 4)
-                     (agile-gtd--someday-files :maxlevel . 4))))
-    (should (equal org-stuck-projects (agile-gtd--stuck-projects-setting)))
-    (should (assoc "P" org-capture-templates))
-    (should (assoc "a" org-agenda-custom-commands))))
+    (let ((agile-gtd-projects '((:tag "projects"))))
+      (agile-gtd-enable)
+      (should org-super-agenda-mode)
+      (should (equal org-agenda-files
+                     (mapcar (lambda (file)
+                               (expand-file-name file org-directory))
+                             '("inbox.org"
+                               "todo.org"
+                               "projects.org"))))
+      (should (equal org-agenda-diary-file
+                     (expand-file-name "diary.org" org-directory)))
+      (should (= org-priority-highest agile-gtd-priority-highest))
+      (should (= org-priority-default agile-gtd-priority-default))
+      (should (= org-priority-lowest agile-gtd-priority-lowest))
+      (should (equal org-priority-faces (agile-gtd--priority-faces)))
+      (should (equal org-modern-priority (agile-gtd--priority-symbols)))
+      (should (equal org-todo-keywords agile-gtd-todo-keywords))
+      (should (equal org-todo-repeat-to-state agile-gtd-todo-repeat-to-state))
+      (should (equal org-refile-targets
+                     '((nil :maxlevel . 9)
+                       (org-agenda-files :maxlevel . 4)
+                       (agile-gtd--someday-files :maxlevel . 4))))
+      (should (equal org-stuck-projects (agile-gtd--stuck-projects-setting)))
+      (should (assoc "P" org-capture-templates))
+      (should (assoc "a" org-agenda-custom-commands)))))
 
 (ert-deftest agile-gtd-refresh-does-not-duplicate-workflow-tags ()
   (agile-gtd-test-with-sandbox
