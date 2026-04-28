@@ -670,7 +670,7 @@ excluded."
 
 (defun agile-gtd-agenda-query-inbox ()
   "Return org-ql sexp for inbox items."
-  `(and (not (done))
+  `(and (todo)
         (tags ,@agile-gtd-inbox-tags)))
 
 (defun agile-gtd-agenda-query-backlog (&optional tag-filter)
@@ -710,7 +710,7 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
 (defun agile-gtd--agenda-custom-commands ()
   "Return the Agile GTD agenda commands."
   `(("i" "Inbox"
-     ((org-ql-block `(and (not (done))
+     ((org-ql-block `(and (todo)
                           (tags ,@agile-gtd-inbox-tags))
                     ((org-ql-block-header "Inbox")
                      (org-super-agenda-groups '((:auto-property "CREATED")))))))

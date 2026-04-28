@@ -34,6 +34,8 @@ DEADLINE: <2026-04-06 Mon>
 
 * DONE Finished inbox :#inbox:
 
+* Inbox :#inbox:
+
 * NEXT [#A] Blocking action
 
 * NEXT [#A] Blocked action
@@ -225,13 +227,15 @@ current max priority group."
     (should (eq 'and (car query)))))
 
 (ert-deftest agile-gtd-agenda-query-inbox-matches ()
-  "Inbox query matches undone inbox-tagged items, excludes done ones."
+  "Inbox query matches inbox-tagged items with a TODO keyword only.
+Excludes done items and plain (stateless) section headings."
   (agile-gtd-agenda-test-with-data
    (let* ((query (agile-gtd-agenda-query-inbox))
           (headings (agile-gtd-org-ql-test-headings buffer query)))
      (should (member "Inbox item one" headings))
      (should (member "Inbox item two" headings))
      (should-not (member "Finished inbox" headings))
+     (should-not (member "Inbox" headings))
      (should-not (member "Work high-prio" headings)))))
 
 ;;; Customer agenda command tests
