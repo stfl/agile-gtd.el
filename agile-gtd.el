@@ -731,9 +731,16 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
               ((org-agenda-span 'week)
                (org-agenda-start-on-weekday 1)
                (org-agenda-archives-mode t)
-               (org-agenda-start-with-log-mode '(closed))
-               (org-agenda-show-log 'logcheck)
-               (org-agenda-skip-function '(org-agenda-skip-entry-if 'notregexp "^.*DONE ")))))) ;; FIXME also show logs for items even if not closed)
+               (org-agenda-use-time-grid nil)
+               (org-agenda-show-log 'only)
+               (org-agenda-log-mode-items '(state))))))
+    ("c" "Agenda Weekly | clock entries"
+     ((agenda ""
+              ((org-agenda-span 'week)
+               (org-agenda-start-on-weekday 1)
+               (org-agenda-archives-mode t)
+               (org-agenda-show-log 'clockcheck)
+               (org-agenda-log-mode-items '(clock))))))
     ("r" . "Review")
     ("rc" "Close open NEXT Actions and WAIT"
      ((org-ql-block `(and (todo ,@(agile-gtd--action-keywords))
