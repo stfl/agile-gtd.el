@@ -739,6 +739,7 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
               ((org-agenda-span 'week)
                (org-agenda-start-on-weekday 1)
                (org-agenda-archives-mode t)
+               (org-agenda-use-time-grid nil)
                (org-agenda-show-log 'clockcheck)
                (org-agenda-log-mode-items '(clock))))))
     ("r" . "Review")
