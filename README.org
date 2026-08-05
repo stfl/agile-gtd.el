@@ -294,6 +294,74 @@ The LOGBOOK keeps the audit trail: state changes, clock entries, and notes.
 In work contexts, the same tree can also be used with =org-clock= and effort
 estimates for time tracking and reporting.
 
+* Clockmatrix
+
+=clockmatrix= is an Org dynamic block that renders clocked time as a matrix:
+calendar periods down the rows, projects across the columns, with totals on
+both axes. Columns default to the projects registered in
+=agile-gtd-projects=, so the common case needs no configuration beyond a
+range.
+
+#+begin_example
+ #+BEGIN: clockmatrix :block thisyear :step month
+ | Month   | alpha | beta   | gamma |  Total |
+ |---------+-------+--------+-------+--------|
+ | 2026-05 | 57:00 |  49:45 |  1:45 | 108:30 |
+ | 2026-06 | 13:00 |  79:00 |       |  92:00 |
+ |---------+-------+--------+-------+--------|
+ | Total   | 70:00 | 128:45 |  1:45 | 200:30 |
+ #+END:
+#+end_example
+
+Refresh it with =C-c C-c= like any dynamic block. It is also registered with
+Org's dynamic-block registry, so it appears under =C-c C-x x=.
+
+** Parameters
+
+| Param                 | Default                   | Meaning                                                                |
+|-----------------------+---------------------------+------------------------------------------------------------------------|
+| =:block=              | —                         | Range keyword, as clocktable (=thisyear=, =thismonth=, =2026-Q2=, ...) |
+| =:tstart= / =:tend=   | —                         | Explicit range; =:block= takes precedence                              |
+| =:step=               | =month=                   | =day= / =week= / =semimonth= / =month= / =quarter= / =year=            |
+| =:tags=               | from =agile-gtd-projects= | Column tags, in registration order                                     |
+| =:scope=              | project files             | or =agenda-with-archives=                                              |
+| =:stepskip0=          | =t=                       | Drop all-zero rows                                                     |
+| =:total=              | =t=                       | Total column and Total row                                             |
+| =:wstart= / =:mstart= | 1 / 1                     | Week (0-6, Sunday is 0) / month (1-31) start day, as clocktable        |
+
+A range is required: set =:block=, or both =:tstart= and =:tend=. This
+mirrors clocktable, which likewise requires a range whenever =:step= is used.
+
+** Behaviour
+
+- Column headers are the raw project tags, so a header can be pasted straight
+  into a clocktable =:match= when reconciling.
+- A project with zero clocked time across the whole range is dropped as a
+  column. A cell with zero time is left blank rather than showing =0:00=. A
+  period with no time at all is dropped as a row unless =:stepskip0 nil=.
+- Total means the sum of the project columns shown, never all clocked time:
+  time that does not carry a registered project tag is not represented, and
+  there is no residual "Other" column.
+- Row labels: =%Y-%m= for month; =%Y-%m-%d= for day, week, and semimonth,
+  with a week labelled by its start date; =%Y-Q%d= for quarter; =%Y= for
+  year.
+- A clock spanning a period boundary is split between the two periods, so
+  rows partition the range exactly.
+- Durations honour =org-duration-format=, except that units above hours are
+  dropped, so a monthly total reads =108:30= rather than =4d 12:30=.
+- The default scope reads each project's own file plus its archive, which is
+  what keeps refresh interactive. =:scope agenda-with-archives= widens to
+  every agenda file and its archives, as an audit path. See
+  [[file:docs/adr/0001-clockmatrix-default-scope.md][the ADR]] for the
+  trade-off.
+- A project whose main file is missing produces a warning naming the project
+  and the path tried; fix it by setting =:file= on the project's entry in
+  =agile-gtd-projects=, or by using =:scope agenda-with-archives=. A missing
+  archive file is silent.
+- A project can be registered purely so its history appears in reports: an
+  entry without a =:key= gets no agenda keybinding and no tag-alist entry, so
+  it stays inert in the agenda.
+
 * What the package configures
 
 =agile-gtd-enable= and =agile-gtd-refresh= install the workflow into Org by

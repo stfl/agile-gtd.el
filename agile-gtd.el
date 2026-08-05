@@ -17,6 +17,8 @@
 (require 'org)
 (require 'org-agenda)
 (require 'org-capture)
+(require 'org-clock)
+(require 'org-duration)
 (require 'org-element)
 (require 'org-id)
 (require 'org-ql)
@@ -1218,6 +1220,250 @@ This is the inverse of `agile-gtd--prio-rank'."
   "Enable Agile GTD for the current Org configuration."
   (interactive)
   (agile-gtd-refresh))
+
+;;;; Clock matrix dynamic block
+
+(defconst agile-gtd--clockmatrix-step-headers
+  '((day . "Day")
+    (week . "Week")
+    (semimonth . "Semimonth")
+    (month . "Month")
+    (quarter . "Quarter")
+    (year . "Year"))
+  "Label-column header for each `:step' a `clockmatrix' block accepts.")
+
+(defun agile-gtd--clockmatrix-time (value)
+  "Resolve VALUE from a clockmatrix range specification into a time.
+VALUE is an absolute day number as used by the agenda, or an Org
+timestamp string."
+  (pcase value
+    ((and (pred numberp) n)
+     (pcase-let ((`(,m ,d ,y) (calendar-gregorian-from-absolute n)))
+       (org-encode-time 0 0 org-extend-today-until d m y)))
+    ((and (pred stringp) timestamp)
+     (seconds-to-time (org-matcher-time timestamp)))
+    (_ (user-error
+        "Clockmatrix needs a range: set `:block', or both `:tstart' and `:tend'"))))
+
+(defun agile-gtd--clockmatrix-range (params)
+  "Return the range PARAMS report on, as a cons of start and end times.
+`:block' takes precedence over `:tstart' and `:tend', as in clocktable."
+  (let ((range (pcase (plist-get params :block)
+                 (`nil nil)
+                 (block (org-clock-special-range
+                         block nil t
+                         (or (plist-get params :wstart) 1)
+                         (or (plist-get params :mstart) 1))))))
+    (cons (agile-gtd--clockmatrix-time
+           (if range (car range) (plist-get params :tstart)))
+          (agile-gtd--clockmatrix-time
+           (if range (nth 1 range) (plist-get params :tend))))))
+
+(defun agile-gtd--clockmatrix-step-end (start step wstart mstart)
+  "Return the end of the STEP period beginning at START.
+WSTART and MSTART are the week and month start days.  The calendar
+arithmetic follows Org's own stepped clocktables."
+  (pcase-let ((`(,_ ,_ ,_ ,d ,m ,y ,dow . ,_) (decode-time start)))
+    (pcase step
+      (`day (org-encode-time 0 0 org-extend-today-until (1+ d) m y))
+      (`week
+       (let ((offset (if (= dow wstart) 7 (mod (- wstart dow) 7))))
+         (org-encode-time 0 0 org-extend-today-until (+ d offset) m y)))
+      (`semimonth (org-encode-time 0 0 0
+                                   (if (< d 16) 16 1)
+                                   (if (< d 16) m (1+ m)) y))
+      (`month (org-encode-time 0 0 0 mstart (1+ m) y))
+      (`quarter (org-encode-time 0 0 0 mstart (+ 3 m) y))
+      (`year (org-encode-time 0 0 org-extend-today-until 1 1 (1+ y)))
+      (_ (user-error "Unknown `:step' specification: %S" step)))))
+
+(defun agile-gtd--clockmatrix-periods (start end step wstart mstart)
+  "Return the STEP periods tiling START to END, as (FROM . TO) conses.
+The first and last period are clipped to the range, so the periods
+partition it exactly.  WSTART and MSTART are the week and month start
+days."
+  (let (periods)
+    (while (time-less-p start end)
+      (let ((next (agile-gtd--clockmatrix-step-end start step wstart mstart)))
+        ;; A `:wstart' outside 0-6 can land the next period on the current one,
+        ;; which would loop forever.  Refuse rather than hang.
+        (unless (time-less-p start next)
+          (user-error "Clockmatrix `:step' %s does not advance past %s: \
+check `:wstart' (0-6) and `:mstart' (1-31)"
+                      step (format-time-string "%Y-%m-%d" start)))
+        (push (cons start (if (time-less-p end next) end next)) periods)
+        (setq start next)))
+    (nreverse periods)))
+
+(defun agile-gtd--clockmatrix-label (start step)
+  "Return the row label for the STEP period beginning at START.
+A week is labelled by the date it starts on."
+  (pcase step
+    (`month (format-time-string "%Y-%m" start))
+    (`year (format-time-string "%Y" start))
+    (`quarter (pcase-let ((`(,_ ,_ ,_ ,_ ,m ,y . ,_) (decode-time start)))
+                (format "%d-Q%d" y (1+ (/ (1- m) 3)))))
+    (_ (format-time-string "%Y-%m-%d" start))))
+
+(defun agile-gtd--clockmatrix-own-files (tag)
+  "Return the existing files holding time clocked against project TAG.
+That is the project's own file plus its archive.  A missing main file is
+a misconfiguration and warns; a missing archive is expected and does not."
+  (let* ((project (cl-find tag agile-gtd-projects
+                           :key #'agile-gtd--project-tag :test #'equal))
+         (name (agile-gtd--project-file (or project (list :tag tag))))
+         (main (agile-gtd--expand-org-path name))
+         (archive (agile-gtd--expand-org-path (concat "archive/" name))))
+    (unless (file-exists-p main)
+      (warn "Agile GTD: project %S has no file at %s, so it reports no time.  \
+Set :file on its entry in `agile-gtd-projects', or use \
+`:scope agenda-with-archives'" tag main))
+    (cl-remove-if-not #'file-exists-p (list main archive))))
+
+(defun agile-gtd--clockmatrix-files (tag scope)
+  "Return the files to sum for project TAG under SCOPE.
+SCOPE is nil for the project's own files, or `agenda-with-archives'."
+  (pcase scope
+    (`nil (agile-gtd--clockmatrix-own-files tag))
+    (`agenda-with-archives (org-add-archive-files (org-agenda-files t)))
+    (_ (user-error "Unknown `:scope' for clockmatrix: %S" scope))))
+
+(defun agile-gtd--clockmatrix-minutes (files tag start end)
+  "Return the minutes clocked against TAG in FILES between START and END.
+Delegating the sum to Org is what makes a cell agree with the equivalent
+clocktable, and clips clocks that cross START or END rather than
+double-counting or dropping them."
+  (let ((params (list :maxlevel 0
+                      :match tag
+                      :tstart (format-time-string (org-time-stamp-format t t) start)
+                      :tend (format-time-string (org-time-stamp-format t t) end))))
+    (cl-loop for file in files
+             sum (with-current-buffer (or (find-buffer-visiting file)
+                                          (find-file-noselect file))
+                   (save-excursion
+                     (save-restriction
+                       (widen)
+                       (or (nth 1 (org-clock-get-table-data file params)) 0)))))))
+
+(defun agile-gtd--clockmatrix-rows (tags files periods step)
+  "Return one row per period in PERIODS.
+Each row is a cons of the period's label and the minutes clocked against
+each of TAGS, read from the matching entry of FILES."
+  (org-agenda-prepare-buffers
+   (cl-remove-duplicates (apply #'append files) :test #'equal))
+  (mapcar (lambda (period)
+            (cons (agile-gtd--clockmatrix-label (car period) step)
+                  (cl-mapcar (lambda (tag tag-files)
+                               (agile-gtd--clockmatrix-minutes
+                                tag-files tag (car period) (cdr period)))
+                             tags files)))
+          periods))
+
+(defun agile-gtd--clockmatrix-prune-columns (tags rows)
+  "Drop the entries of TAGS with no clocked time anywhere in ROWS.
+Return a cons of the surviving tags and the correspondingly narrowed ROWS."
+  (let ((kept (cl-loop for i from 0 below (length tags)
+                       when (> (cl-loop for row in rows sum (nth i (cdr row))) 0)
+                       collect i)))
+    (cons (mapcar (lambda (i) (nth i tags)) kept)
+          (mapcar (lambda (row)
+                    (cons (car row) (mapcar (lambda (i) (nth i (cdr row))) kept)))
+                  rows))))
+
+(defun agile-gtd--clockmatrix-duration-format ()
+  "Return `org-duration-format' with every unit above hours dropped.
+Monthly totals read as 108:30 rather than 4d 12:30, while the rest of
+the configured format is left alone."
+  (if (not (consp org-duration-format))
+      org-duration-format
+    (or (cl-remove-if (lambda (entry)
+                        (let ((unit (car entry)))
+                          (and (stringp unit)
+                               (> (or (cdr (assoc unit org-duration-units)) 0) 60))))
+                      org-duration-format)
+        'h:mm)))
+
+(defun agile-gtd--clockmatrix-cell (minutes)
+  "Format MINUTES as a table cell, left blank when there is no time."
+  (if (> minutes 0)
+      (org-duration-from-minutes minutes (agile-gtd--clockmatrix-duration-format))
+    ""))
+
+(defun agile-gtd--clockmatrix-row-total (row)
+  "Return the total minutes in ROW, a label followed by per-project minutes."
+  (apply #'+ (cdr row)))
+
+(defun agile-gtd--clockmatrix-insert-row (cells)
+  "Insert CELLS as one Org table row."
+  (insert "| " (mapconcat #'identity cells " | ") " |\n"))
+
+(defun org-dblock-write:clockmatrix (params)
+  "Write a `clockmatrix' dynamic block according to PARAMS.
+Render clocked time as a matrix with calendar periods down the rows and
+projects across the columns, totalled on both axes.  Columns default to
+the projects registered in `agile-gtd-projects'; a project with no time
+anywhere in the range is dropped.  See the README for the full parameter
+list."
+  (let* ((step (or (plist-get params :step) 'month))
+         (wstart (or (plist-get params :wstart) 1))
+         (mstart (or (plist-get params :mstart) 1))
+         (skip0 (if (plist-member params :stepskip0)
+                    (plist-get params :stepskip0)
+                  t))
+         (show-total (if (plist-member params :total)
+                         (plist-get params :total)
+                       t))
+         (header (or (alist-get step agile-gtd--clockmatrix-step-headers)
+                     (user-error "Unknown `:step' specification: %S" step)))
+         (range (agile-gtd--clockmatrix-range params))
+         (periods (agile-gtd--clockmatrix-periods
+                   (car range) (cdr range) step wstart mstart))
+         (tags (or (plist-get params :tags)
+                   (mapcar #'agile-gtd--project-tag agile-gtd-projects)))
+         (files (mapcar (lambda (tag)
+                          (agile-gtd--clockmatrix-files
+                           tag (plist-get params :scope)))
+                        tags))
+         (pruned (agile-gtd--clockmatrix-prune-columns
+                  tags (agile-gtd--clockmatrix-rows tags files periods step)))
+         (columns (car pruned))
+         (rows (if skip0
+                   (cl-remove-if (lambda (row)
+                                   (= 0 (agile-gtd--clockmatrix-row-total row)))
+                                 (cdr pruned))
+                 (cdr pruned)))
+         (table-start (point)))
+    (agile-gtd--clockmatrix-insert-row
+     (append (list header) columns (and show-total (list "Total"))))
+    (insert "|-\n")
+    (dolist (row rows)
+      (agile-gtd--clockmatrix-insert-row
+       (append (list (car row))
+               (mapcar #'agile-gtd--clockmatrix-cell (cdr row))
+               (and show-total
+                    (list (agile-gtd--clockmatrix-cell
+                           (agile-gtd--clockmatrix-row-total row)))))))
+    (when show-total
+      (insert "|-\n")
+      (agile-gtd--clockmatrix-insert-row
+       (append (list "Total")
+               (cl-loop for i from 0 below (length columns)
+                        collect (agile-gtd--clockmatrix-cell
+                                 (cl-loop for row in rows sum (nth i (cdr row)))))
+               (list (agile-gtd--clockmatrix-cell
+                      (cl-loop for row in rows
+                               sum (agile-gtd--clockmatrix-row-total row)))))))
+    (goto-char table-start)
+    (org-table-align)))
+
+;;;###autoload
+(defun agile-gtd-clockmatrix ()
+  "Insert a `clockmatrix' dynamic block at point and render it."
+  (interactive)
+  (org-create-dblock (list :name "clockmatrix" :block 'thisyear :step 'month))
+  (org-update-dblock))
+
+(org-dynamic-block-define "clockmatrix" #'agile-gtd-clockmatrix)
 
 (provide 'agile-gtd)
 

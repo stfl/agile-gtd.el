@@ -10,11 +10,20 @@ jobs:
   test:
     name: Emacs ${{ matrix.emacs-version }}
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
       matrix:
         emacs-version:
           - "30.2"
+        include:
+          # Emacs 31 coverage.  nix-emacs-ci, which purcell/setup-emacs installs
+          # from, ships no released 31.x: "release-snapshot" builds the emacs-31
+          # branch (31.0.91), while "snapshot" builds master (32.x).  The entry
+          # is non-fatal so upstream churn cannot red the build; "30.2" is the
+          # hard requirement and matches the version floor in Eask.
+          - emacs-version: "release-snapshot"
+            experimental: true
 
     steps:
       - uses: actions/checkout@v6
