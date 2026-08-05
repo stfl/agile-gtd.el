@@ -1282,7 +1282,9 @@ MSTART are the week and month start days.
 Every unit but `semimonth' resolves through Org itself, so the window
 lands on exactly the boundaries of the reports it is read alongside.
 Org has no semimonth keyword to borrow, so that unit counts halves of
-months directly."
+months directly, and it ignores MSTART: `:step semimonth' always splits
+a month on the 1st and the 16th, so a window honouring MSTART would open
+somewhere its own steps never land."
   (if (eq unit 'semimonth)
       (let ((index (agile-gtd--semimonth-index time)))
         (list (agile-gtd--semimonth-start (- index (1- count)))

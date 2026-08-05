@@ -344,7 +344,9 @@ finer step that divides the window cleanly is legitimate and useful: =:block
 lastweeks-8 :step day= is a sound 56-row daily view.
 
 Week boundaries follow =:wstart= and month boundaries follow =:mstart=, the
-same as every other clock report.
+same as every other clock report. Semimonths are the exception: they always
+split on the 1st and the 16th, exactly as =:step semimonth= does, so
+=:mstart= does not move them.
 
 =:block= keeps its existing precedence over =:tstart=/=:tend=; these
 keywords introduce no new precedence rule.

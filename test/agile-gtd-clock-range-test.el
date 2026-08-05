@@ -117,9 +117,10 @@ two spellings of one window, so it is dropped."
   (agile-gtd-clock-range-test-with-clocks '((0 . 1))
     (let ((labels (agile-gtd-clock-range-test-labels
                    ":block lastweeks-4 :step week :stepskip0 nil"))
-          (current (format-time-string
-                    "%Y-%m-%d"
-                    (car (org-clock-special-range 'thisweek nil nil 1 1)))))
+          ;; What Org's own `thisweek' renders, rather than what its range
+          ;; resolver returns: the expectation stays on observable output.
+          (current (car (agile-gtd-clock-range-test-labels
+                         ":block thisweek :step week :stepskip0 nil"))))
       (should (= 4 (length labels)))
       (should (equal current (car (last labels))))
       ;; Whole weeks throughout, so no period at either edge is a stub.
@@ -212,9 +213,18 @@ two spellings of one window, so it is dropped."
 
 (ert-deftest agile-gtd-clock-range-accepts-a-step-finer-than-the-window ()
   "A step that divides the window cleanly is a sound way to read it."
-  (let ((daily (agile-gtd-clock-range-test-clocktable
-                '((0 . 1)) ":block lastweeks-2 :step day")))
-    (should (= 14 (agile-gtd-clock-range-test-count "Daily report: " daily)))))
+  (let* ((daily (agile-gtd-clock-range-test-clocktable
+                 '((0 . 1)) ":block lastweeks-2 :step day"))
+         (dates (agile-gtd-clock-range-test-step-dates daily))
+         (weekly (agile-gtd-clock-range-test-clocktable
+                  '((0 . 1)) ":block lastweeks-2 :step week")))
+    (should (= 14 (agile-gtd-clock-range-test-count "Daily report: " daily)))
+    ;; Fourteen sub-tables are only a clean tiling if each is a whole day and
+    ;; together they cover the same two weeks, edge to edge.
+    (should (= 14 (length dates)))
+    (should (equal (make-list 13 1) (agile-gtd-clock-range-test-gaps dates)))
+    (should (equal (car (agile-gtd-clock-range-test-step-dates weekly))
+                   (car dates)))))
 
 ;;; Reporting nonsense
 
