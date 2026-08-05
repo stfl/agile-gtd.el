@@ -347,6 +347,11 @@ mirrors clocktable, which likewise requires a range whenever =:step= is used.
   year.
 - A clock spanning a period boundary is split between the two periods, so
   rows partition the range exactly.
+- Weeks start on the day given by =:wstart=, which defaults to =1= (Monday),
+  inherited from =org-clocktable-defaults=. Org's clock code never consults
+  =calendar-week-start-day= — that variable governs only how the calendar is
+  drawn, so setting it has no effect here. To start weeks on Sunday, write
+  =:wstart 0= on the block.
 - Durations honour =org-duration-format=, except that units above hours are
   dropped, so a monthly total reads =108:30= rather than =4d 12:30=.
 - The default scope reads each project's own file plus its archive, which is
