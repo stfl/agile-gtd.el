@@ -1221,6 +1221,123 @@ This is the inverse of `agile-gtd--prio-rank'."
   (interactive)
   (agile-gtd-refresh))
 
+;;;; Rolling clock ranges
+
+(defconst agile-gtd--last-periods-regexp
+  "\\`last\\(day\\|week\\|semimonth\\|month\\|quarter\\|year\\)s-\\(.+\\)\\'"
+  "Regexp matching a `last<unit>s-N' range keyword.
+Group 1 is the unit; group 2 is the count exactly as it was written.
+The units are the six `:step' accepts, so the two vocabularies match.")
+
+(defconst agile-gtd--last-periods-keys
+  '((day . today)
+    (week . thisweek)
+    (month . thismonth)
+    (quarter . thisq)
+    (year . thisyear))
+  "Org's own range keyword for the period of each unit currently in progress.
+`semimonth' is absent because Org has no keyword for it.")
+
+(defun agile-gtd--last-periods (key)
+  "Return (UNIT . COUNT) when KEY is a `last<unit>s-N' keyword, else nil.
+COUNT is the text written after the unit, which need not be a number.
+Org's singular `lastweek' is a shift to the previous week and does not
+match here; only the plural span form does."
+  (let ((skey (format "%s" key)))
+    (when (string-match agile-gtd--last-periods-regexp skey)
+      (cons (intern (match-string 1 skey)) (match-string 2 skey)))))
+
+(defun agile-gtd--last-periods-count (count key)
+  "Return COUNT, the period count written in range keyword KEY, as a number.
+N counts periods rather than offsets, so the smallest window is one."
+  (unless (string-match-p "\\`[0-9]+\\'" count)
+    (user-error "Time block %s counts periods, so N must be a whole number" key))
+  (let ((n (string-to-number count)))
+    (when (= n 0)
+      (user-error "Time block %s counts periods, so N must be at least 1" key))
+    n))
+
+(defun agile-gtd--semimonth-index (time)
+  "Return the number of the semimonth holding TIME.
+Numbering the halves of every month consecutively is what lets a window
+step back over month and year boundaries without a special case at each."
+  (pcase-let ((`(,_ ,_ ,_ ,d ,m ,y . ,_) (decode-time time)))
+    (+ (* 24 y) (* 2 (1- m)) (if (< d 16) 0 1))))
+
+(defun agile-gtd--semimonth-start (index)
+  "Return the time at which the semimonth numbered INDEX begins."
+  (let ((half (mod index 24)))
+    (org-encode-time 0 0 org-extend-today-until
+                     (if (cl-evenp half) 1 16)
+                     (1+ (/ half 2))
+                     (/ index 24))))
+
+(defun agile-gtd--last-periods-range (unit count time wstart mstart)
+  "Return the last COUNT whole UNIT periods ending with the one holding TIME.
+The value is a list of the window's start and end times.  WSTART and
+MSTART are the week and month start days.
+
+Every unit but `semimonth' resolves through Org itself, so the window
+lands on exactly the boundaries of the reports it is read alongside.
+Org has no semimonth keyword to borrow, so that unit counts halves of
+months directly."
+  (if (eq unit 'semimonth)
+      (let ((index (agile-gtd--semimonth-index time)))
+        (list (agile-gtd--semimonth-start (- index (1- count)))
+              (agile-gtd--semimonth-start (1+ index))))
+    (let ((key (alist-get unit agile-gtd--last-periods-keys)))
+      ;; The window opens where the shift COUNT-1 periods back opens, and closes
+      ;; where the period in progress closes.  Org reads a shift off the end of
+      ;; a string but dispatches the plain keyword on a symbol.
+      (list (car (org-clock-special-range
+                  (format "%s-%d" key (1- count)) time nil wstart mstart))
+            (nth 1 (org-clock-special-range key time nil wstart mstart))))))
+
+(defun agile-gtd--clock-special-range (orig key &optional time as-strings wstart mstart)
+  "Resolve a `last<unit>s-N' KEY, delegating every other KEY to ORIG.
+
+KEY names the last N whole periods of one of the six units `:step'
+accepts, ending with and including the period currently in progress.
+So `lastweeks-1' is the current week alone, and equals `thisweek', while
+`lastweeks-8' is that week together with the seven before it.  Measuring
+the window in the same unit as its boundaries is what keeps every period
+in it whole.
+
+Every clock report funnels through this function, which is what makes
+the keywords work in a plain clocktable, a stepped clocktable and a
+clockmatrix alike.  TIME, AS-STRINGS, WSTART and MSTART keep the
+meanings Org gives them."
+  (pcase (agile-gtd--last-periods key)
+    (`nil (funcall orig key time as-strings wstart mstart))
+    (`(,unit . ,written)
+     (let* ((count (agile-gtd--last-periods-count written key))
+            (range (agile-gtd--last-periods-range unit count time wstart mstart))
+            (text (format "the last %d %s%s" count unit (if (= count 1) "" "s"))))
+       (if (not as-strings)
+           (append range (list text))
+         (let ((fmt (org-time-stamp-format 'with-time)))
+           (list (format-time-string fmt (car range))
+                 (format-time-string fmt (nth 1 range))
+                 text)))))))
+
+(defun agile-gtd--clocktable-shift-guard (&rest _)
+  "Refuse to shift a clocktable whose `:block' spans a count of periods.
+Org's shift command matches the digits of `lastweeks-8' as though they
+were a bare year and rewrites the block to `9', destroying the parameter
+with nothing left in the buffer to recover it from.  Its own fallback
+already turns away the blocks it cannot shift, `untilnow' among them;
+these join that set, under the same message, so the refusal is
+indistinguishable from any other."
+  (save-excursion
+    (goto-char (line-beginning-position))
+    (when (and (looking-at
+                "^[ \t]*#\\+BEGIN:[ \t]+clocktable\\>.*?:block[ \t]+\\(\\S-+\\)")
+               (agile-gtd--last-periods (match-string 1)))
+      (user-error "Cannot shift clocktable block"))))
+
+(advice-add 'org-clock-special-range :around #'agile-gtd--clock-special-range)
+(advice-add 'org-clocktable-shift :before #'agile-gtd--clocktable-shift-guard)
+
 ;;;; Clock matrix dynamic block
 
 (defconst agile-gtd--clockmatrix-step-headers

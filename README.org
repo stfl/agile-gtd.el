@@ -294,6 +294,67 @@ The LOGBOOK keeps the audit trail: state changes, clock entries, and notes.
 In work contexts, the same tree can also be used with =org-clock= and effort
 estimates for time tracking and reporting.
 
+* Rolling clock ranges
+
+=agile-gtd= installs a family of Org range keywords for =:block=, usable
+anywhere Org accepts a =:block= value: a plain =clocktable=, a stepped
+=clocktable=, or =clockmatrix=. They install when the package loads, so no
+further configuration is needed.
+
+The family covers six units, matching =:step= exactly:
+
+- =lastdays-N=
+- =lastweeks-N=
+- =lastsemimonths-N=
+- =lastmonths-N=
+- =lastquarters-N=
+- =lastyears-N=
+
+Each selects the last =N= whole periods of that unit, ending with and
+including the period currently in progress. =lastweeks-1= is the current week
+alone, equal to =thisweek=. =lastweeks-8= is the current week plus the seven
+before it.
+
+Because the window is measured in the same unit as its boundaries, every
+period in it is whole. This is the point of the family: =:block thismonth
+:step week= splits the week that rolls over the month end across two
+reports, and neither figure answers "how much did I work that week?" =:block
+lastweeks-8 :step week= never does that.
+
+#+begin_example
+ #+BEGIN: clocktable :block lastweeks-8 :step week
+ #+END:
+
+ #+BEGIN: clockmatrix :block lastmonths-12 :step month
+ #+END:
+#+end_example
+
+*Singular vs. plural:* the plural is the whole distinction. Org's singular
+=lastweek= means the previous week — a shift, excluding the current one.
+=lastweeks-1= means the last one week — a span, including the current one.
+They differ by one character and by a week. The same distinction holds
+between =lastmonth= and =lastmonths-1=.
+
+=N= must be a positive whole number; anything else is reported as an error.
+An unrecognised unit produces Org's own =No such time block= error, exactly
+as a typo always has.
+
+=:step= is never inferred from the keyword — write the =:step= you want. A
+finer step that divides the window cleanly is legitimate and useful: =:block
+lastweeks-8 :step day= is a sound 56-row daily view.
+
+Week boundaries follow =:wstart= and month boundaries follow =:mstart=, the
+same as every other clock report.
+
+=:block= keeps its existing precedence over =:tstart=/=:tend=; these
+keywords introduce no new precedence rule.
+
+=S-<left>= / =S-<right>= (Org's clocktable shift command) refuse to shift a
+block using one of these keywords, reporting Org's own =Cannot shift
+clocktable block= message — the same refusal =untilnow= gets. Org's shift
+command would otherwise misread the digits of =lastweeks-8= as a bare year
+and silently rewrite the block, destroying the parameter.
+
 * Clockmatrix
 
 =clockmatrix= is an Org dynamic block that renders clocked time as a matrix:
@@ -320,7 +381,7 @@ Org's dynamic-block registry, so it appears under =C-c C-x x=.
 
 | Param                 | Default                   | Meaning                                                                |
 |-----------------------+---------------------------+------------------------------------------------------------------------|
-| =:block=              | —                         | Range keyword, as clocktable (=thisyear=, =thismonth=, =2026-Q2=, ...) |
+| =:block=              | —                         | Range keyword, as clocktable (=thisyear=, =2026-Q2=, ...) or [[*Rolling clock ranges][rolling]]  |
 | =:tstart= / =:tend=   | —                         | Explicit range; =:block= takes precedence                              |
 | =:step=               | =month=                   | =day= / =week= / =semimonth= / =month= / =quarter= / =year=            |
 | =:tags=               | from =agile-gtd-projects= | Column tags, in registration order                                     |
