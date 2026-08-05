@@ -1238,21 +1238,23 @@ The units are the six `:step' accepts, so the two vocabularies match.")
   "Org's own range keyword for the period of each unit currently in progress.
 `semimonth' is absent because Org has no keyword for it.")
 
-(defun agile-gtd--last-periods (key)
-  "Return (UNIT . COUNT) when KEY is a `last<unit>s-N' keyword, else nil.
-COUNT is the text written after the unit, which need not be a number.
-Org's singular `lastweek' is a shift to the previous week and does not
-match here; only the plural span form does."
+(defun agile-gtd--last-periods-parse (key)
+  "Return (UNIT . WRITTEN) when KEY is a `last<unit>s-N' keyword, else nil.
+WRITTEN is the count as it was typed, which need not be a number: the
+shift guard needs to recognise a malformed count as one of these
+keywords, so parsing stays separate from validating it.  Org's singular
+`lastweek' is a shift to the previous week and does not match here; only
+the plural span form does."
   (let ((skey (format "%s" key)))
     (when (string-match agile-gtd--last-periods-regexp skey)
       (cons (intern (match-string 1 skey)) (match-string 2 skey)))))
 
-(defun agile-gtd--last-periods-count (count key)
-  "Return COUNT, the period count written in range keyword KEY, as a number.
+(defun agile-gtd--last-periods-parse-count (written key)
+  "Return WRITTEN, the count typed in range keyword KEY, as a number.
 N counts periods rather than offsets, so the smallest window is one."
-  (unless (string-match-p "\\`[0-9]+\\'" count)
+  (unless (string-match-p "\\`[0-9]+\\'" written)
     (user-error "Time block %s counts periods, so N must be a whole number" key))
-  (let ((n (string-to-number count)))
+  (let ((n (string-to-number written)))
     (when (= n 0)
       (user-error "Time block %s counts periods, so N must be at least 1" key))
     n))
@@ -1307,10 +1309,10 @@ Every clock report funnels through this function, which is what makes
 the keywords work in a plain clocktable, a stepped clocktable and a
 clockmatrix alike.  TIME, AS-STRINGS, WSTART and MSTART keep the
 meanings Org gives them."
-  (pcase (agile-gtd--last-periods key)
+  (pcase (agile-gtd--last-periods-parse key)
     (`nil (funcall orig key time as-strings wstart mstart))
     (`(,unit . ,written)
-     (let* ((count (agile-gtd--last-periods-count written key))
+     (let* ((count (agile-gtd--last-periods-parse-count written key))
             (range (agile-gtd--last-periods-range unit count time wstart mstart))
             (text (format "the last %d %s%s" count unit (if (= count 1) "" "s"))))
        (if (not as-strings)
@@ -1332,7 +1334,7 @@ indistinguishable from any other."
     (goto-char (line-beginning-position))
     (when (and (looking-at
                 "^[ \t]*#\\+BEGIN:[ \t]+clocktable\\>.*?:block[ \t]+\\(\\S-+\\)")
-               (agile-gtd--last-periods (match-string 1)))
+               (agile-gtd--last-periods-parse (match-string 1)))
       (user-error "Cannot shift clocktable block"))))
 
 (advice-add 'org-clock-special-range :around #'agile-gtd--clock-special-range)
