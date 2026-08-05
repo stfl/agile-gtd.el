@@ -386,7 +386,7 @@ Org's dynamic-block registry, so it appears under =C-c C-x x=.
 | =:step=               | =month=                   | =day= / =week= / =semimonth= / =month= / =quarter= / =year=            |
 | =:tags=               | from =agile-gtd-projects= | Column tags, in registration order                                     |
 | =:scope=              | project files             | or =agenda-with-archives=                                              |
-| =:stepskip0=          | =t=                       | Drop all-zero rows                                                     |
+| =:stepskip0=          | =nil=                     | Drop all-zero rows                                                     |
 | =:total=              | =t=                       | Total column and Total row                                             |
 | =:wstart= / =:mstart= | 1 / 1                     | Week (0-6, Sunday is 0) / month (1-31) start day, as clocktable        |
 
@@ -398,8 +398,13 @@ mirrors clocktable, which likewise requires a range whenever =:step= is used.
 - Column headers are the raw project tags, so a header can be pasted straight
   into a clocktable =:match= when reconciling.
 - A project with zero clocked time across the whole range is dropped as a
-  column. A cell with zero time is left blank rather than showing =0:00=. A
-  period with no time at all is dropped as a row unless =:stepskip0 nil=.
+  column. A cell with zero time is left blank rather than showing =0:00=.
+  Every period in the range gets a row, including one with no clocked time
+  at all; =:stepskip0 t= drops those all-zero rows. The default, =nil=,
+  matches =org-clocktable-defaults=, so a parameter shared with clocktable
+  does not disagree on its default between the two. This is what keeps a
+  week you did not work visible as a gap in =:block lastweeks-8= output,
+  rather than silently omitting it.
 - Total means the sum of the project columns shown, never all clocked time:
   time that does not carry a registered project tag is not represented, and
   there is no residual "Other" column.

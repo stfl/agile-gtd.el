@@ -128,7 +128,8 @@ Rows are lists of trimmed cell strings; horizontal rules are `hline'."
       agile-gtd-clockmatrix-test-projects
       agile-gtd-clockmatrix-test-files
     (should (equal (agile-gtd-clockmatrix-test-table
-                    ":tstart \"2026-01-01\" :tend \"2027-01-01\" :step month")
+                    ":tstart \"2026-01-01\" :tend \"2027-01-01\" :step month
+                     :stepskip0 t")
                    '(("Month" "alpha" "beta" "Total")
                      hline
                      ("2026-05" "3:15" "1:45" "5:00")
@@ -142,24 +143,39 @@ Rows are lists of trimmed cell strings; horizontal rules are `hline'."
       agile-gtd-clockmatrix-test-projects
       agile-gtd-clockmatrix-test-files
     (should (equal (agile-gtd-clockmatrix-test-table
-                    ":tstart \"2025-01-01\" :tend \"2026-01-01\" :step month")
+                    ":tstart \"2025-01-01\" :tend \"2026-01-01\" :step month
+                     :stepskip0 t")
                    '(("Month" "gamma" "Total")
                      hline
                      ("2025-11" "1:45" "1:45")
                      hline
                      ("Total" "1:45" "1:45"))))))
 
-(ert-deftest agile-gtd-clockmatrix-keeps-all-zero-rows-with-stepskip0-nil ()
-  "Empty periods are dropped by default and kept under `:stepskip0 nil'."
+(ert-deftest agile-gtd-clockmatrix-keeps-all-zero-rows-by-default ()
+  "Empty periods appear in the table without a `:stepskip0' override."
+  (agile-gtd-clockmatrix-test-with-data
+      agile-gtd-clockmatrix-test-projects
+      agile-gtd-clockmatrix-test-files
+    (should (equal (agile-gtd-clockmatrix-test-table
+                    ":tstart \"2026-04-01\" :tend \"2026-07-01\" :step month")
+                   '(("Month" "alpha" "beta" "Total")
+                     hline
+                     ("2026-04" "" "" "")
+                     ("2026-05" "3:15" "1:45" "5:00")
+                     ("2026-06" "3:30" "" "3:30")
+                     hline
+                     ("Total" "6:45" "1:45" "8:30"))))))
+
+(ert-deftest agile-gtd-clockmatrix-drops-all-zero-rows-with-stepskip0-t ()
+  "`:stepskip0 t' removes periods where every project shows no time."
   (agile-gtd-clockmatrix-test-with-data
       agile-gtd-clockmatrix-test-projects
       agile-gtd-clockmatrix-test-files
     (should (equal (agile-gtd-clockmatrix-test-table
                     ":tstart \"2026-04-01\" :tend \"2026-07-01\" :step month
-                     :stepskip0 nil")
+                     :stepskip0 t")
                    '(("Month" "alpha" "beta" "Total")
                      hline
-                     ("2026-04" "" "" "")
                      ("2026-05" "3:15" "1:45" "5:00")
                      ("2026-06" "3:30" "" "3:30")
                      hline
@@ -172,7 +188,7 @@ Rows are lists of trimmed cell strings; horizontal rules are `hline'."
       agile-gtd-clockmatrix-test-files
     (should (equal (agile-gtd-clockmatrix-test-table
                     ":tstart \"2026-01-01\" :tend \"2027-01-01\" :step month
-                     :total nil")
+                     :total nil :stepskip0 t")
                    '(("Month" "alpha" "beta")
                      hline
                      ("2026-05" "3:15" "1:45")
@@ -185,7 +201,7 @@ Rows are lists of trimmed cell strings; horizontal rules are `hline'."
       agile-gtd-clockmatrix-test-files
     (should (equal (agile-gtd-clockmatrix-test-table
                     ":tstart \"2026-01-01\" :tend \"2027-01-01\" :step month
-                     :tags (\"beta\")")
+                     :tags (\"beta\") :stepskip0 t")
                    '(("Month" "beta" "Total")
                      hline
                      ("2026-05" "1:45" "1:45")
@@ -219,7 +235,8 @@ Rows are lists of trimmed cell strings; horizontal rules are `hline'."
       agile-gtd-clockmatrix-test-projects
       agile-gtd-clockmatrix-test-files
     (should (equal (agile-gtd-clockmatrix-test-table
-                    ":tstart \"2026-05-01\" :tend \"2026-05-15\" :step week")
+                    ":tstart \"2026-05-01\" :tend \"2026-05-15\" :step week
+                     :stepskip0 t")
                    '(("Week" "alpha" "beta" "Total")
                      hline
                      ("2026-05-04" "2:00" "1:15" "3:15")
@@ -259,7 +276,8 @@ CLOCK: [2026-06-02 Tue 09:00]--[2026-06-02 Tue 09:30] =>  0:30
 :END:
 "))
     (should (equal (agile-gtd-clockmatrix-test-table
-                    ":tstart \"2026-05-01\" :tend \"2026-07-01\" :step semimonth")
+                    ":tstart \"2026-05-01\" :tend \"2026-07-01\" :step semimonth
+                     :stepskip0 t")
                    '(("Semimonth" "delta" "Total")
                      hline
                      ("2026-05-01" "1:00" "1:00")
@@ -319,7 +337,8 @@ CLOCK: [2026-05-10 Sun 09:00]--[2026-05-10 Sun 11:00] =>  2:00
     ;; Weeks starting on Sunday put 2026-05-10 in its own row; starting on
     ;; Monday it falls in the week of 2026-05-04 together with the other clock.
     (should (equal (agile-gtd-clockmatrix-test-table
-                    ":tstart \"2026-05-03\" :tend \"2026-05-17\" :step week :wstart 0")
+                    ":tstart \"2026-05-03\" :tend \"2026-05-17\" :step week :wstart 0
+                     :stepskip0 t")
                    '(("Week" "delta" "Total")
                      hline
                      ("2026-05-03" "1:00" "1:00")
@@ -327,7 +346,8 @@ CLOCK: [2026-05-10 Sun 09:00]--[2026-05-10 Sun 11:00] =>  2:00
                      hline
                      ("Total" "3:00" "3:00"))))
     (should (equal (agile-gtd-clockmatrix-test-table
-                    ":tstart \"2026-05-03\" :tend \"2026-05-17\" :step week :wstart 1")
+                    ":tstart \"2026-05-03\" :tend \"2026-05-17\" :step week :wstart 1
+                     :stepskip0 t")
                    '(("Week" "delta" "Total")
                      hline
                      ("2026-05-04" "3:00" "3:00")
@@ -348,7 +368,8 @@ CLOCK: [2026-05-16 Sat 09:00]--[2026-05-16 Sat 12:00] =>  3:00
     ;; The week starting 2026-05-11 runs to 2026-05-18, but the range ends on
     ;; 2026-05-15, so the clock on 2026-05-16 is outside the report entirely.
     (should (equal (agile-gtd-clockmatrix-test-table
-                    ":tstart \"2026-05-01\" :tend \"2026-05-15\" :step week")
+                    ":tstart \"2026-05-01\" :tend \"2026-05-15\" :step week
+                     :stepskip0 t")
                    '(("Week" "delta" "Total")
                      hline
                      ("2026-05-11" "1:00" "1:00")
@@ -436,9 +457,11 @@ CLOCK: [2026-05-04 Mon 09:00]--[2026-05-04 Mon 10:00] =>  1:00
 :END:
 "))
     (should-not (agile-gtd-clockmatrix-test-warnings
-                 ":tstart \"2026-01-01\" :tend \"2027-01-01\" :step month"))
+                 ":tstart \"2026-01-01\" :tend \"2027-01-01\" :step month
+                  :stepskip0 t"))
     (should (equal (agile-gtd-clockmatrix-test-table
-                    ":tstart \"2026-01-01\" :tend \"2027-01-01\" :step month")
+                    ":tstart \"2026-01-01\" :tend \"2027-01-01\" :step month
+                     :stepskip0 t")
                    '(("Month" "glas" "Total")
                      hline
                      ("2026-05" "1:00" "1:00")
