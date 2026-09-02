@@ -24,7 +24,7 @@ eask exec emacs -batch -Q -L . \
 
 ## Architecture
 
-This is a single-file Emacs Lisp package (`agile-gtd.el`) with four companion test files under `test/`.
+This is a single-file Emacs Lisp package (`agile-gtd.el`) with five companion test files under `test/`.
 
 ### Main entry points
 
@@ -47,7 +47,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with four companion te
 - `agile-gtd-agenda-query-backlog` — backlog with priority grouping
 - `agile-gtd-agenda-query-inbox` — unprocessed inbox items
 - `agile-gtd-agenda-query-stuck-projects` — projects with no NEXT action
-- Customer-specific agenda commands generated from `agile-gtd-customers`
+- Project-specific agenda commands generated from `agile-gtd-projects`
 
 **Rank / sort key** (`agile-gtd--item-rank`, `agile-gtd--item-rank<`)
 - Composite score from item priority, parent-project priority, deadline proximity, and scheduled date
