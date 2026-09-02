@@ -2,7 +2,7 @@
 
 ;; Version: 0.1.0
 ;; URL: https://github.com/stfl/agile-gtd
-;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (ts "0.3") (org-edna "1.1.2"))
+;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2"))
 ;; Keywords: outlines, calendar, tools
 
 ;;; Commentary:
@@ -16,15 +16,13 @@
 (require 'dash)
 (require 'org)
 (require 'org-agenda)
+(require 'org-archive)
 (require 'org-capture)
-(require 'org-clock)
-(require 'org-duration)
 (require 'org-element)
 (require 'org-id)
 (require 'org-ql)
 (require 'org-ql-search)
 (require 'org-super-agenda)
-(require 'ts)
 
 (defvar org-modern-priority)
 
@@ -368,9 +366,25 @@ When nil, derive it from `agile-gtd-priority-default'."
   "Expand FILE relative to `org-directory'."
   (expand-file-name file org-directory))
 
+(defun agile-gtd-project-records ()
+  "Return the registered projects as normalised records.
+A record is a plist carrying `:tag', `:name', `:file' and `:key' with
+every default already applied, so no consumer repeats the rules that
+`agile-gtd-projects' leaves implicit.  All three of tag, name and file
+can differ for one project, and consumers want different ones of them:
+the tag matches clock entries, the name labels a prompt, the file names
+what to scan."
+  (mapcar (lambda (project)
+            (list :tag (agile-gtd--project-tag project)
+                  :name (agile-gtd--project-name project)
+                  :file (agile-gtd--project-file project)
+                  :key (agile-gtd--project-key project)))
+          agile-gtd-projects))
+
 (defun agile-gtd-project-files ()
   "Return the list of project files derived from `agile-gtd-projects'."
-  (mapcar #'agile-gtd--project-file agile-gtd-projects))
+  (mapcar (lambda (record) (plist-get record :file))
+          (agile-gtd-project-records)))
 
 (defun agile-gtd--managed-agenda-files ()
   "Return the agenda files directly managed by Agile GTD."
@@ -1216,373 +1230,64 @@ This is the inverse of `agile-gtd--prio-rank'."
   (agile-gtd--apply-capture-templates)
   (agile-gtd--apply-agenda-commands))
 
+(defun agile-gtd--project-untagged-files (record)
+  "Return the files of RECORD that do not declare RECORD\\='s tag.
+The files are the project\\='s own file and the archives Org resolves from
+`org-archive-location', both of which hold clocked time that is selected
+by inherited tag.  Only a file-level tag makes every entry in a file
+inherit one, so a tag worn by individual headlines does not count; an
+archive is the case that bites, because archiving stores the inherited
+tags of a subtree in its `ARCHIVE_ITAGS' property rather than as real
+tags.  Files that do not exist are Org\\='s to drop, and are not reported
+here: this asks about tags, not about layout."
+  (let ((tag (plist-get record :tag)))
+    (when tag
+      (cl-remove-if
+       (lambda (file)
+         (with-current-buffer (org-get-agenda-file-buffer file)
+           (member tag org-file-tags)))
+       (org-add-archive-files
+        (list (agile-gtd--expand-org-path (plist-get record :file))))))))
+
+(defun agile-gtd-check-project-tags ()
+  "Warn about registered project files that do not carry their tag.
+Pairing a project with its time is inherited-tag matching, so a file
+missing its tag answers every query with nothing and says nothing about
+why.  Reporting it here is the difference between learning of it at
+startup and learning of it from an empty invoice.
+
+The check never writes.  Org offers no built-in for setting a file tag,
+and this package loads in batch, so repairing the files from here would
+make a config sync, a doctor run or a test run mutate Org data as a side
+effect.  The fix is manual and deliberate."
+  (interactive)
+  (let ((org-agenda-new-buffers nil)
+        (offenders nil))
+    (unwind-protect
+        (dolist (record (agile-gtd-project-records))
+          (dolist (file (agile-gtd--project-untagged-files record))
+            (push (format "%s (%s)"
+                          (abbreviate-file-name file)
+                          (plist-get record :tag))
+                  offenders)))
+      ;; Reading a tag means visiting the file; a check that leaves the whole
+      ;; registry open has changed the session it was meant to inspect.
+      (org-release-buffers org-agenda-new-buffers))
+    (setq offenders (nreverse offenders))
+    (cond (offenders
+           (warn "Agile GTD: project files without their project tag: %s"
+                 (mapconcat #'identity offenders ", ")))
+          ((called-interactively-p 'interactive)
+           (message "Agile GTD: every project file carries its tag")))))
+
 (defun agile-gtd-enable ()
   "Enable Agile GTD for the current Org configuration."
   (interactive)
-  (agile-gtd-refresh))
-
-;;;; Rolling clock ranges
-
-(defconst agile-gtd--last-periods-regexp
-  "\\`last\\(day\\|week\\|semimonth\\|month\\|quarter\\|year\\)s-\\(.+\\)\\'"
-  "Regexp matching a `last<unit>s-N' range keyword.
-Group 1 is the unit; group 2 is the count exactly as it was written.
-The units are the six `:step' accepts, so the two vocabularies match.")
-
-(defconst agile-gtd--last-periods-keys
-  '((day . today)
-    (week . thisweek)
-    (month . thismonth)
-    (quarter . thisq)
-    (year . thisyear))
-  "Org's own range keyword for the period of each unit currently in progress.
-`semimonth' is absent because Org has no keyword for it.")
-
-(defun agile-gtd--last-periods-parse (key)
-  "Return (UNIT . WRITTEN) when KEY is a `last<unit>s-N' keyword, else nil.
-WRITTEN is the count as it was typed, which need not be a number: the
-shift guard needs to recognise a malformed count as one of these
-keywords, so parsing stays separate from validating it.  Org's singular
-`lastweek' is a shift to the previous week and does not match here; only
-the plural span form does."
-  (let ((skey (format "%s" key)))
-    (when (string-match agile-gtd--last-periods-regexp skey)
-      (cons (intern (match-string 1 skey)) (match-string 2 skey)))))
-
-(defun agile-gtd--last-periods-parse-count (written key)
-  "Return WRITTEN, the count typed in range keyword KEY, as a number.
-N counts periods rather than offsets, so the smallest window is one."
-  (unless (string-match-p "\\`[0-9]+\\'" written)
-    (user-error "Time block %s counts periods, so N must be a whole number" key))
-  (let ((n (string-to-number written)))
-    (when (= n 0)
-      (user-error "Time block %s counts periods, so N must be at least 1" key))
-    n))
-
-(defun agile-gtd--semimonth-index (time)
-  "Return the number of the semimonth holding TIME.
-Numbering the halves of every month consecutively is what lets a window
-step back over month and year boundaries without a special case at each."
-  (pcase-let ((`(,_ ,_ ,_ ,d ,m ,y . ,_) (decode-time time)))
-    (+ (* 24 y) (* 2 (1- m)) (if (< d 16) 0 1))))
-
-(defun agile-gtd--semimonth-start (index)
-  "Return the time at which the semimonth numbered INDEX begins."
-  (let ((half (mod index 24)))
-    (org-encode-time 0 0 org-extend-today-until
-                     (if (cl-evenp half) 1 16)
-                     (1+ (/ half 2))
-                     (/ index 24))))
-
-(defun agile-gtd--last-periods-range (unit count time wstart mstart)
-  "Return the last COUNT whole UNIT periods ending with the one holding TIME.
-The value is a list of the window's start and end times.  WSTART and
-MSTART are the week and month start days.
-
-Every unit but `semimonth' resolves through Org itself, so the window
-lands on exactly the boundaries of the reports it is read alongside.
-Org has no semimonth keyword to borrow, so that unit counts halves of
-months directly, and it ignores MSTART: `:step semimonth' always splits
-a month on the 1st and the 16th, so a window honouring MSTART would open
-somewhere its own steps never land."
-  (if (eq unit 'semimonth)
-      (let ((index (agile-gtd--semimonth-index time)))
-        (list (agile-gtd--semimonth-start (- index (1- count)))
-              (agile-gtd--semimonth-start (1+ index))))
-    (let ((key (alist-get unit agile-gtd--last-periods-keys)))
-      ;; The window opens where the shift COUNT-1 periods back opens, and closes
-      ;; where the period in progress closes.  Org reads a shift off the end of
-      ;; a string but dispatches the plain keyword on a symbol.
-      (list (car (org-clock-special-range
-                  (format "%s-%d" key (1- count)) time nil wstart mstart))
-            (nth 1 (org-clock-special-range key time nil wstart mstart))))))
-
-(defun agile-gtd--clock-special-range (orig key &optional time as-strings wstart mstart)
-  "Resolve a `last<unit>s-N' KEY, delegating every other KEY to ORIG.
-
-KEY names the last N whole periods of one of the six units `:step'
-accepts, ending with and including the period currently in progress.
-So `lastweeks-1' is the current week alone, and equals `thisweek', while
-`lastweeks-8' is that week together with the seven before it.  Measuring
-the window in the same unit as its boundaries is what keeps every period
-in it whole.
-
-Every clock report funnels through this function, which is what makes
-the keywords work in a plain clocktable, a stepped clocktable and a
-clockmatrix alike.  TIME, AS-STRINGS, WSTART and MSTART keep the
-meanings Org gives them."
-  (pcase (agile-gtd--last-periods-parse key)
-    (`nil (funcall orig key time as-strings wstart mstart))
-    (`(,unit . ,written)
-     (let* ((count (agile-gtd--last-periods-parse-count written key))
-            (range (agile-gtd--last-periods-range unit count time wstart mstart))
-            (text (format "the last %d %s%s" count unit (if (= count 1) "" "s"))))
-       (if (not as-strings)
-           (append range (list text))
-         (let ((fmt (org-time-stamp-format 'with-time)))
-           (list (format-time-string fmt (car range))
-                 (format-time-string fmt (nth 1 range))
-                 text)))))))
-
-(defun agile-gtd--clocktable-shift-guard (&rest _)
-  "Refuse to shift a clocktable whose `:block' spans a count of periods.
-Org's shift command matches the digits of `lastweeks-8' as though they
-were a bare year and rewrites the block to `9', destroying the parameter
-with nothing left in the buffer to recover it from.  Its own fallback
-already turns away the blocks it cannot shift, `untilnow' among them;
-these join that set, under the same message, so the refusal is
-indistinguishable from any other."
-  (save-excursion
-    (goto-char (line-beginning-position))
-    (when (and (looking-at
-                "^[ \t]*#\\+BEGIN:[ \t]+clocktable\\>.*?:block[ \t]+\\(\\S-+\\)")
-               (agile-gtd--last-periods-parse (match-string 1)))
-      (user-error "Cannot shift clocktable block"))))
-
-(advice-add 'org-clock-special-range :around #'agile-gtd--clock-special-range)
-(advice-add 'org-clocktable-shift :before #'agile-gtd--clocktable-shift-guard)
-
-;;;; Clock matrix dynamic block
-
-(defconst agile-gtd--clockmatrix-step-headers
-  '((day . "Day")
-    (week . "Week")
-    (semimonth . "Semimonth")
-    (month . "Month")
-    (quarter . "Quarter")
-    (year . "Year"))
-  "Label-column header for each `:step' a `clockmatrix' block accepts.")
-
-(defun agile-gtd--clockmatrix-time (value)
-  "Resolve VALUE from a clockmatrix range specification into a time.
-VALUE is an absolute day number as used by the agenda, or an Org
-timestamp string."
-  (pcase value
-    ((and (pred numberp) n)
-     (pcase-let ((`(,m ,d ,y) (calendar-gregorian-from-absolute n)))
-       (org-encode-time 0 0 org-extend-today-until d m y)))
-    ((and (pred stringp) timestamp)
-     (seconds-to-time (org-matcher-time timestamp)))
-    (_ (user-error
-        "Clockmatrix needs a range: set `:block', or both `:tstart' and `:tend'"))))
-
-(defun agile-gtd--clockmatrix-range (params)
-  "Return the range PARAMS report on, as a cons of start and end times.
-`:block' takes precedence over `:tstart' and `:tend', as in clocktable."
-  (let ((range (pcase (plist-get params :block)
-                 (`nil nil)
-                 (block (org-clock-special-range
-                         block nil t
-                         (or (plist-get params :wstart) 1)
-                         (or (plist-get params :mstart) 1))))))
-    (cons (agile-gtd--clockmatrix-time
-           (if range (car range) (plist-get params :tstart)))
-          (agile-gtd--clockmatrix-time
-           (if range (nth 1 range) (plist-get params :tend))))))
-
-(defun agile-gtd--clockmatrix-step-end (start step wstart mstart)
-  "Return the end of the STEP period beginning at START.
-WSTART and MSTART are the week and month start days.  The calendar
-arithmetic follows Org's own stepped clocktables."
-  (pcase-let ((`(,_ ,_ ,_ ,d ,m ,y ,dow . ,_) (decode-time start)))
-    (pcase step
-      (`day (org-encode-time 0 0 org-extend-today-until (1+ d) m y))
-      (`week
-       (let ((offset (if (= dow wstart) 7 (mod (- wstart dow) 7))))
-         (org-encode-time 0 0 org-extend-today-until (+ d offset) m y)))
-      (`semimonth (org-encode-time 0 0 0
-                                   (if (< d 16) 16 1)
-                                   (if (< d 16) m (1+ m)) y))
-      (`month (org-encode-time 0 0 0 mstart (1+ m) y))
-      (`quarter (org-encode-time 0 0 0 mstart (+ 3 m) y))
-      (`year (org-encode-time 0 0 org-extend-today-until 1 1 (1+ y)))
-      (_ (user-error "Unknown `:step' specification: %S" step)))))
-
-(defun agile-gtd--clockmatrix-periods (start end step wstart mstart)
-  "Return the STEP periods tiling START to END, as (FROM . TO) conses.
-The first and last period are clipped to the range, so the periods
-partition it exactly.  WSTART and MSTART are the week and month start
-days."
-  (let (periods)
-    (while (time-less-p start end)
-      (let ((next (agile-gtd--clockmatrix-step-end start step wstart mstart)))
-        ;; A `:wstart' outside 0-6 can land the next period on the current one,
-        ;; which would loop forever.  Refuse rather than hang.
-        (unless (time-less-p start next)
-          (user-error "Clockmatrix `:step' %s does not advance past %s: \
-check `:wstart' (0-6) and `:mstart' (1-31)"
-                      step (format-time-string "%Y-%m-%d" start)))
-        (push (cons start (if (time-less-p end next) end next)) periods)
-        (setq start next)))
-    (nreverse periods)))
-
-(defun agile-gtd--clockmatrix-label (start step)
-  "Return the row label for the STEP period beginning at START.
-A week is labelled by the date it starts on."
-  (pcase step
-    (`month (format-time-string "%Y-%m" start))
-    (`year (format-time-string "%Y" start))
-    (`quarter (pcase-let ((`(,_ ,_ ,_ ,_ ,m ,y . ,_) (decode-time start)))
-                (format "%d-Q%d" y (1+ (/ (1- m) 3)))))
-    (_ (format-time-string "%Y-%m-%d" start))))
-
-(defun agile-gtd--clockmatrix-own-files (tag)
-  "Return the existing files holding time clocked against project TAG.
-That is the project's own file plus its archive.  A missing main file is
-a misconfiguration and warns; a missing archive is expected and does not."
-  (let* ((project (cl-find tag agile-gtd-projects
-                           :key #'agile-gtd--project-tag :test #'equal))
-         (name (agile-gtd--project-file (or project (list :tag tag))))
-         (main (agile-gtd--expand-org-path name))
-         (archive (agile-gtd--expand-org-path (concat "archive/" name))))
-    (unless (file-exists-p main)
-      (warn "Agile GTD: project %S has no file at %s, so it reports no time.  \
-Set :file on its entry in `agile-gtd-projects', or use \
-`:scope agenda-with-archives'" tag main))
-    (cl-remove-if-not #'file-exists-p (list main archive))))
-
-(defun agile-gtd--clockmatrix-files (tag scope)
-  "Return the files to sum for project TAG under SCOPE.
-SCOPE is nil for the project's own files, or `agenda-with-archives'."
-  (pcase scope
-    (`nil (agile-gtd--clockmatrix-own-files tag))
-    (`agenda-with-archives (org-add-archive-files (org-agenda-files t)))
-    (_ (user-error "Unknown `:scope' for clockmatrix: %S" scope))))
-
-(defun agile-gtd--clockmatrix-minutes (files tag start end)
-  "Return the minutes clocked against TAG in FILES between START and END.
-Delegating the sum to Org is what makes a cell agree with the equivalent
-clocktable, and clips clocks that cross START or END rather than
-double-counting or dropping them."
-  (let ((params (list :maxlevel 0
-                      :match tag
-                      :tstart (format-time-string (org-time-stamp-format t t) start)
-                      :tend (format-time-string (org-time-stamp-format t t) end))))
-    (cl-loop for file in files
-             sum (with-current-buffer (or (find-buffer-visiting file)
-                                          (find-file-noselect file))
-                   (save-excursion
-                     (save-restriction
-                       (widen)
-                       (or (nth 1 (org-clock-get-table-data file params)) 0)))))))
-
-(defun agile-gtd--clockmatrix-rows (tags files periods step)
-  "Return one row per period in PERIODS.
-Each row is a cons of the period's label and the minutes clocked against
-each of TAGS, read from the matching entry of FILES."
-  (org-agenda-prepare-buffers
-   (cl-remove-duplicates (apply #'append files) :test #'equal))
-  (mapcar (lambda (period)
-            (cons (agile-gtd--clockmatrix-label (car period) step)
-                  (cl-mapcar (lambda (tag tag-files)
-                               (agile-gtd--clockmatrix-minutes
-                                tag-files tag (car period) (cdr period)))
-                             tags files)))
-          periods))
-
-(defun agile-gtd--clockmatrix-prune-columns (tags rows)
-  "Drop the entries of TAGS with no clocked time anywhere in ROWS.
-Return a cons of the surviving tags and the correspondingly narrowed ROWS."
-  (let ((kept (cl-loop for i from 0 below (length tags)
-                       when (> (cl-loop for row in rows sum (nth i (cdr row))) 0)
-                       collect i)))
-    (cons (mapcar (lambda (i) (nth i tags)) kept)
-          (mapcar (lambda (row)
-                    (cons (car row) (mapcar (lambda (i) (nth i (cdr row))) kept)))
-                  rows))))
-
-(defun agile-gtd--clockmatrix-duration-format ()
-  "Return `org-duration-format' with every unit above hours dropped.
-Monthly totals read as 108:30 rather than 4d 12:30, while the rest of
-the configured format is left alone."
-  (if (not (consp org-duration-format))
-      org-duration-format
-    (or (cl-remove-if (lambda (entry)
-                        (let ((unit (car entry)))
-                          (and (stringp unit)
-                               (> (or (cdr (assoc unit org-duration-units)) 0) 60))))
-                      org-duration-format)
-        'h:mm)))
-
-(defun agile-gtd--clockmatrix-cell (minutes)
-  "Format MINUTES as a table cell, left blank when there is no time."
-  (if (> minutes 0)
-      (org-duration-from-minutes minutes (agile-gtd--clockmatrix-duration-format))
-    ""))
-
-(defun agile-gtd--clockmatrix-row-total (row)
-  "Return the total minutes in ROW, a label followed by per-project minutes."
-  (apply #'+ (cdr row)))
-
-(defun agile-gtd--clockmatrix-insert-row (cells)
-  "Insert CELLS as one Org table row."
-  (insert "| " (mapconcat #'identity cells " | ") " |\n"))
-
-(defun org-dblock-write:clockmatrix (params)
-  "Write a `clockmatrix' dynamic block according to PARAMS.
-Render clocked time as a matrix with calendar periods down the rows and
-projects across the columns, totalled on both axes.  Columns default to
-the projects registered in `agile-gtd-projects'; a project with no time
-anywhere in the range is dropped.  See the README for the full parameter
-list."
-  (let* ((step (or (plist-get params :step) 'month))
-         (wstart (or (plist-get params :wstart) 1))
-         (mstart (or (plist-get params :mstart) 1))
-         (skip0 (plist-get params :stepskip0))
-         (show-total (if (plist-member params :total)
-                         (plist-get params :total)
-                       t))
-         (header (or (alist-get step agile-gtd--clockmatrix-step-headers)
-                     (user-error "Unknown `:step' specification: %S" step)))
-         (range (agile-gtd--clockmatrix-range params))
-         (periods (agile-gtd--clockmatrix-periods
-                   (car range) (cdr range) step wstart mstart))
-         (tags (or (plist-get params :tags)
-                   (mapcar #'agile-gtd--project-tag agile-gtd-projects)))
-         (files (mapcar (lambda (tag)
-                          (agile-gtd--clockmatrix-files
-                           tag (plist-get params :scope)))
-                        tags))
-         (pruned (agile-gtd--clockmatrix-prune-columns
-                  tags (agile-gtd--clockmatrix-rows tags files periods step)))
-         (columns (car pruned))
-         (rows (if skip0
-                   (cl-remove-if (lambda (row)
-                                   (= 0 (agile-gtd--clockmatrix-row-total row)))
-                                 (cdr pruned))
-                 (cdr pruned)))
-         (table-start (point)))
-    (agile-gtd--clockmatrix-insert-row
-     (append (list header) columns (and show-total (list "Total"))))
-    (insert "|-\n")
-    (dolist (row rows)
-      (agile-gtd--clockmatrix-insert-row
-       (append (list (car row))
-               (mapcar #'agile-gtd--clockmatrix-cell (cdr row))
-               (and show-total
-                    (list (agile-gtd--clockmatrix-cell
-                           (agile-gtd--clockmatrix-row-total row)))))))
-    (when show-total
-      (insert "|-\n")
-      (agile-gtd--clockmatrix-insert-row
-       (append (list "Total")
-               (cl-loop for i from 0 below (length columns)
-                        collect (agile-gtd--clockmatrix-cell
-                                 (cl-loop for row in rows sum (nth i (cdr row)))))
-               (list (agile-gtd--clockmatrix-cell
-                      (cl-loop for row in rows
-                               sum (agile-gtd--clockmatrix-row-total row)))))))
-    (goto-char table-start)
-    (org-table-align)))
-
-;;;###autoload
-(defun agile-gtd-clockmatrix ()
-  "Insert a `clockmatrix' dynamic block at point and render it."
-  (interactive)
-  (org-create-dblock (list :name "clockmatrix" :block 'thisyear :step 'month))
-  (org-update-dblock))
-
-(org-dynamic-block-define "clockmatrix" #'agile-gtd-clockmatrix)
+  (agile-gtd-refresh)
+  ;; The tag check visits every project file, and a warning raised by a batch
+  ;; run is one nobody reads.
+  (unless noninteractive
+    (agile-gtd-check-project-tags)))
 
 (provide 'agile-gtd)
 
