@@ -143,15 +143,39 @@ package then auto-generates a per-project agenda command, adds the tag to
 
 Each entry is a plist:
 
-| Key     | Required | Description                                                   |
-|---------+----------+---------------------------------------------------------------|
-| =:tag=  | yes      | Org tag string identifying this project                       |
-| =:name= | no       | Display name (defaults to =:tag=)                             |
-| =:file= | no       | Org file relative to =org-directory= (defaults to =:tag=.org) |
-| =:key=  | no       | Single character for agenda key binding and tag-alist         |
+| Key     | Required | Description                                                         |
+|---------+----------+---------------------------------------------------------------------|
+| =:tag=  | yes      | Non-empty Org tag string; the project's identity                    |
+| =:name= | no       | Display name; defaults to the tag                                   |
+| =:file= | no       | Org file, resolved against =org-directory=; defaults to =<tag>.org= |
+| =:key=  | no       | Single character for the agenda command and the tag-alist entry     |
+
+The tag is what a project *is*. Everything that selects a project's work — its
+agenda command, a tag filter typed in an agenda buffer, the clocked-time
+reports of a clocking package reading the same registry — matches on the tag,
+so an entry belongs to its project wherever it sits and whatever its file is
+called. Changing a =:name= or moving a =:file= leaves the project's history
+where it is; retagging an entry is what moves work from one project to another.
+A relative =:file= is resolved against =org-directory= and nowhere else, so the
+same registry means the same files whatever buffer is current when it is read.
 
 A project without a =:key= gets no agenda keybinding and no tag-alist entry, so
-it can be registered purely so that its files and its history stay in reach.
+it can be registered purely so that its files and its history stay in reach. A
+=:key= that is not a character costs the project only those two things; the
+project itself stays usable.
+
+Keys beyond these four are tolerated and ignored, so one registry can carry
+another package's extensions without this package knowing about them.
+
+An entry that is not a plist, one whose =:tag= is not a non-empty string, and
+one repeating a =:tag= an earlier entry already claims are each skipped with a
+warning naming the entry and showing the shape that would have been accepted.
+The warning comes once per offending entry — the registry is read on every
+agenda build, and a warning repeated on each of those buries the one that
+matters — and starts over when the registry is edited. Nothing raises: one
+mistyped line costs its own project, never the session. Where two entries claim
+one tag the first wins. Two projects sharing a file, or a display name, are
+permitted.
 
 ** Configuration example
 
@@ -177,8 +201,31 @@ applied: one plist per entry, carrying =:tag=, =:name=, =:file= and =:key=. All
 three of tag, name and file can differ for one project, and consumers want
 different ones of them — the tag matches entries, the name labels a prompt, the
 file names what to scan — so the accessor keeps the defaulting rules in one
-place rather than in each consumer. =agile-gtd-project-files= is the file
-column of those same records.
+place rather than in each consumer. A declared file is carried as written,
+relative names included, and expanded against =org-directory= where it is
+actually used. =agile-gtd-project-files= is the file column of those same
+records. Both read through the same funnel, so an entry skipped with a warning
+is absent from every one of them.
+
+** One registry for clocking too
+
+[[https://github.com/stfl/org-clock-projects][org-clock-projects]] reads a registry in this same layout: the same =:tag=,
+=:name= and =:file=, the same defaults for the two that follow from the tag,
+the same tolerance for keys it does not know, and the same skip-and-warn
+treatment of an entry it cannot use. =:key= is this package's own extension to
+that layout — the clocking package tolerates it on input and drops it from its
+own records, which is exactly what the shared contract promises an extension.
+Point that package's project function at this package's accessor to keep one
+registry rather than two:
+
+#+begin_src emacs-lisp
+(setq org-clock-projects-projects-function #'agile-gtd-project-records)
+#+end_src
+
+Neither package requires the other, and neither reads the other's variables.
+The layout is shared by convention and held in place by a contract test in each
+suite: the same declared-to-normalised table, asserted over =:tag=, =:name= and
+=:file= on both sides, with =:key= the one column only this side has.
 
 ** Tag check at startup
 

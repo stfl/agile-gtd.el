@@ -1,6 +1,6 @@
 ;;; agile-gtd.el --- Agile GTD workflow for Org -*- lexical-binding: t; -*-
 
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; URL: https://github.com/stfl/agile-gtd
 ;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2"))
 ;; Keywords: outlines, calendar, tools
@@ -119,13 +119,33 @@
   :group 'agile-gtd)
 
 (defcustom agile-gtd-projects nil
-  "List of configured projects.
-Each entry is a plist with:
-  :tag  - org tag string identifying this project (required)
-  :name - display name (defaults to value of :tag)
-  :file - org file relative to `org-directory' (defaults to :tag \".org\")
-  :key  - single character for agenda key binding and tag-alist (optional, nil means no binding)"
-  :type '(repeat (plist :key-type keyword :value-type sexp))
+  "The projects this configuration knows about, one plist each.
+
+  :tag   Org tag the project\\='s entries carry.  A required non-empty
+         string, and the identity every consumer keys on.
+  :name  Display name.  Defaults to the tag.
+  :file  Org file, relative names expanded against `org-directory'.
+         Defaults to \"<tag>.org\".
+  :key   Character selecting the project\\='s agenda command and binding
+         its `org-tag-alist' entry.  Optional; a project declaring
+         anything but a character gets neither.
+
+Keys beyond these are tolerated and ignored, so one list can serve
+several packages at once.  This layout is shared by convention with
+`org-clock-projects', which reads the same `:tag', `:name' and `:file'
+with the same defaults and ignores `:key'; point its project function at
+`agile-gtd-project-records' to keep one registry rather than two.
+
+An entry that is not a plist, one whose `:tag' is not a non-empty
+string, and one repeating a `:tag' an earlier entry already claims are
+each skipped with a warning rather than an error, so one mistyped line
+costs one project and not the session.  Where two entries claim one tag
+the first wins.  Two projects sharing a file, or a display name, are
+permitted."
+  :type '(repeat (plist :options ((:tag string)
+                                  (:name string)
+                                  (:file file)
+                                  (:key character))))
   :group 'agile-gtd)
 
 (defcustom agile-gtd-inbox-file "inbox.org"
@@ -366,6 +386,28 @@ When nil, derive it from `agile-gtd-priority-default'."
   "Expand FILE relative to `org-directory'."
   (expand-file-name file org-directory))
 
+(defvar agile-gtd--warned-registry nil
+  "The value of `agile-gtd-projects' `agile-gtd--warned-entries' belongs to.")
+
+(defvar agile-gtd--warned-entries nil
+  "Registry entries already warned about, compared with `equal'.
+Identity cannot serve here: an entry is warned about once per registry
+value, and the registry is walked afresh on every read.")
+
+(defun agile-gtd--warn-skipped-project (entry reason)
+  "Warn once that registry ENTRY is skipped, because REASON.
+Once per entry per value of `agile-gtd-projects': the registry is read on
+every agenda build and every refresh, and a warning repeated on each of
+those buries the one that matters.  The warning shows the plist form so
+the shape being asked for is in front of whoever reads it."
+  (unless (member entry agile-gtd--warned-entries)
+    (push entry agile-gtd--warned-entries)
+    (warn (concat "Agile GTD: skipping project entry %S: %s."
+                  "  A project is a plist"
+                  " (:tag \"tag\" :name \"Name\" :file \"file.org\" :key ?k)"
+                  " of which only :tag is required")
+          entry reason)))
+
 (defun agile-gtd-project-records ()
   "Return the registered projects as normalised records.
 A record is a plist carrying `:tag', `:name', `:file' and `:key' with
@@ -373,13 +415,42 @@ every default already applied, so no consumer repeats the rules that
 `agile-gtd-projects' leaves implicit.  All three of tag, name and file
 can differ for one project, and consumers want different ones of them:
 the tag matches clock entries, the name labels a prompt, the file names
-what to scan."
-  (mapcar (lambda (project)
-            (list :tag (agile-gtd--project-tag project)
-                  :name (agile-gtd--project-name project)
-                  :file (agile-gtd--project-file project)
-                  :key (agile-gtd--project-key project)))
-          agile-gtd-projects))
+what to scan.  `:key' is this package\\='s own extension to the shared
+registry layout and survives normalisation here.
+
+This is the funnel every consumer passes through, so it is where an
+unusable entry is dropped: a bare string, a plist whose `:tag' is not a
+non-empty string, and a plist repeating a tag an earlier entry already
+claims are skipped with one warning apiece.  Dropping them here rather than at the
+declaration is what keeps a typo from reaching `org-agenda-files',
+`org-tag-alist' or an agenda command as a project named nothing, and
+what keeps a `setq' of the registry as well guarded as a `setopt'."
+  (unless (equal agile-gtd-projects agile-gtd--warned-registry)
+    (setq agile-gtd--warned-registry agile-gtd-projects
+          agile-gtd--warned-entries nil))
+  (let ((claimed nil)
+        (records nil))
+    (dolist (project agile-gtd-projects (nreverse records))
+      (let ((tag (and (consp project) (agile-gtd--project-tag project))))
+        (cond
+         ((not (consp project))
+          (agile-gtd--warn-skipped-project project "it is not a plist"))
+         ;; A tag has to be a non-empty string to be an identity.  An empty
+         ;; one defaults the file to ".org", a real path under
+         ;; `org-directory'; anything that is not a string reaches
+         ;; `org-tag-alist' as a car Org cannot match.
+         ((not (and (stringp tag) (not (string-empty-p tag))))
+          (agile-gtd--warn-skipped-project project "it declares no :tag"))
+         ((member tag claimed)
+          (agile-gtd--warn-skipped-project
+           project (format "the tag %S is already claimed" tag)))
+         (t
+          (push tag claimed)
+          (push (list :tag tag
+                      :name (agile-gtd--project-name project)
+                      :file (agile-gtd--project-file project)
+                      :key (agile-gtd--project-key project))
+                records)))))))
 
 (defun agile-gtd-project-files ()
   "Return the list of project files derived from `agile-gtd-projects'."
@@ -706,7 +777,11 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
     '(agile-gtd-stuck-proj)))
 
 (defun agile-gtd--project-agenda-commands ()
-  "Return agenda commands for each project that has a :key defined."
+  "Return an agenda command for each project declaring a `:key' character.
+The filter tests for a character rather than for a non-nil `:key',
+because `char-to-string' signals on anything else and this list is built
+while the agenda is configured at startup — a `:key' of \"w\" would take
+the session down rather than cost one project its command."
   (mapcar
    (lambda (project)
      (let* ((tag  (agile-gtd--project-tag project))
@@ -721,7 +796,9 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
           (org-ql-block ',(agile-gtd-agenda-query-next-actions filt nil t)
                         ((org-ql-block-header "Next Actions")
                          (org-super-agenda-groups ',(agile-gtd-rank-groups))))))))
-   (cl-remove-if-not #'agile-gtd--project-key agile-gtd-projects)))
+   (cl-remove-if-not (lambda (record)
+                       (characterp (agile-gtd--project-key record)))
+                     (agile-gtd-project-records))))
 
 (defun agile-gtd--agenda-custom-commands ()
   "Return the Agile GTD agenda commands."
@@ -1165,7 +1242,8 @@ This is the inverse of `agile-gtd--prio-rank'."
 (defun agile-gtd--apply-tags ()
   "Apply Agile GTD workflow tags and project tags."
   (let* ((workflow-tags (agile-gtd--workflow-tag-alist))
-         (project-tag-names (mapcar #'agile-gtd--project-tag agile-gtd-projects))
+         (projects (agile-gtd-project-records))
+         (project-tag-names (mapcar #'agile-gtd--project-tag projects))
          (managed-names (append (agile-gtd--workflow-tag-names) project-tag-names))
          (current-tags (agile-gtd--delete-sublist workflow-tags org-tag-alist)))
     (setq org-tag-alist
@@ -1176,11 +1254,13 @@ This is the inverse of `agile-gtd--prio-rank'."
                                 (member (car entry) managed-names)))
                          current-tags)
            workflow-tags))
-    ;; Project tags — only add key binding when :key is non-nil
-    (dolist (project agile-gtd-projects)
+    ;; A project earns an `org-tag-alist' entry only by declaring a character:
+    ;; Org reads the cdr as a selection key, and a string or a symbol there
+    ;; corrupts every tag prompt in the session.
+    (dolist (project projects)
       (let ((tag (agile-gtd--project-tag project))
             (key (agile-gtd--project-key project)))
-        (when (and tag key)
+        (when (characterp key)
           (cl-pushnew (cons tag key) org-tag-alist
                       :test (lambda (a b) (equal (car a) (car b)))))))))
 
