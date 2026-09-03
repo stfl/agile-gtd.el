@@ -1,6 +1,14 @@
 ;;; agile-gtd-startup-test.el --- Tests for project records and the tag check -*- lexical-binding: t; -*-
 
 (require 'ert)
+;; `display-warning' is an autoload until something pulls in warnings.el, and
+;; the capture below replaces its function cell.  Called while it is still an
+;; autoload, it loads warnings.el, which defines the real `display-warning'
+;; over the replacement and takes the call — so the first warning of the
+;; session escapes capture and only the first warning-asserting test fails.
+;; Which Emacs builds preload warnings.el varies, so this is a test that
+;; passes locally and fails on CI.
+(require 'warnings)
 (require 'cl-lib)
 (require 'org)
 (require 'org-agenda)
@@ -9,7 +17,13 @@
 (require 'org-ql)
 (require 'org-edna)
 (require 'agile-gtd)
-(require 'agile-gtd-test)
+;; The sandbox macro lives beside this file rather than on the load path, so
+;; the feature is named with the file that provides it: `eask test ert' can be
+;; pointed at this suite alone, and then nothing else has loaded it.
+(require 'agile-gtd-test
+         (expand-file-name "agile-gtd-test"
+                           (file-name-directory
+                            (or load-file-name buffer-file-name))))
 
 ;;; Fixtures
 ;;

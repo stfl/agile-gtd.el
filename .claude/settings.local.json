@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(eask run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
