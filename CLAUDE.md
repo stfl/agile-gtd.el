@@ -78,5 +78,6 @@ Tests live in `test/` and are split by concern:
 | `agile-gtd-rank-test.el` | rank and sort functions |
 | `agile-gtd-org-ql-predicates-test.el` | custom org-ql predicates |
 | `agile-gtd-agenda-test.el` | agenda query helpers |
+| `agile-gtd-startup-test.el` | the project registry, its normalisation and skip-and-warn, and the project-tag startup check |
 
 The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd variables to clean defaults and using a temporary `org-directory`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.

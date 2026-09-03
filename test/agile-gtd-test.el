@@ -118,4 +118,5 @@
   (should (equal (agile-gtd--protocol-description "[hello] [world]")
                  "(hello) (world)")))
 
+(provide 'agile-gtd-test)
 ;;; agile-gtd-test.el ends here

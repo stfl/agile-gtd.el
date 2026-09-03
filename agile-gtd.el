@@ -1319,12 +1319,20 @@ inherit one, so a tag worn by individual headlines does not count; an
 archive is the case that bites, because archiving stores the inherited
 tags of a subtree in its `ARCHIVE_ITAGS' property rather than as real
 tags.  Files that do not exist are Org\\='s to drop, and are not reported
-here: this asks about tags, not about layout."
+here: this asks about tags, not about layout.
+
+Org names an archive for itself — `<file>.org_archive' under the default
+`org-archive-location' — and no `auto-mode-alist' entry claims that name,
+so a buffer visiting one arrives in Fundamental mode where `org-file-tags'
+is nil whatever the file says.  The mode is put on the buffer before its
+tags are read, or every correctly tagged archive under the default layout
+would be reported at every startup."
   (let ((tag (plist-get record :tag)))
     (when tag
       (cl-remove-if
        (lambda (file)
          (with-current-buffer (org-get-agenda-file-buffer file)
+           (unless (derived-mode-p 'org-mode) (org-mode))
            (member tag org-file-tags)))
        (org-add-archive-files
         (list (agile-gtd--expand-org-path (plist-get record :file))))))))

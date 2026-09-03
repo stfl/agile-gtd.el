@@ -9,6 +9,7 @@
 (require 'org-ql)
 (require 'org-edna)
 (require 'agile-gtd)
+(require 'agile-gtd-test)
 
 ;;; Fixtures
 ;;
@@ -39,53 +40,31 @@
 (defmacro agile-gtd-startup-test-with-files (projects files &rest body)
   "Run BODY with PROJECTS registered and FILES written into the sandbox.
 
-PROJECTS is a list of plists for `agile-gtd-projects'.  FILES is an
+PROJECTS is a list of plists for `agile-gtd-projects\'.  FILES is an
 alist of (RELATIVE-NAME . CONTENT); intermediate directories are
-created.  `org-archive-location' points inside the sandbox, so archives
-resolve to real files and the missing-archive case is real too.  The
-warned-entry set is emptied too, for the reason
-`agile-gtd-startup-test-with-registry' gives."
+created.  `agile-gtd-test-with-sandbox\' settles the Org and Agile GTD
+state and owns the temporary directory; what this adds to it is the
+registry under test, an archive location inside that directory so
+archives resolve to real files and the missing-archive case is real too,
+and an empty warned-entry set, for the reason
+`agile-gtd-startup-test-with-registry\' gives."
   (declare (indent 2) (debug t))
-  `(let* ((tmpdir (make-temp-file "agile-gtd-startup-test-" t))
-          (org-directory tmpdir)
-          (org-agenda-files nil)
-          (org-agenda-diary-file nil)
-          (org-agenda-custom-commands nil)
-          (org-agenda-new-buffers nil)
-          (org-archive-location
-           (expand-file-name "archive/%s::datetree" tmpdir))
-          (org-capture-templates nil)
-          (org-refile-targets nil)
-          (org-refile-use-outline-path nil)
-          (org-outline-path-complete-in-steps nil)
-          (org-refile-allow-creating-parent-nodes nil)
-          (org-stuck-projects nil)
-          (org-super-agenda-header-separator nil)
-          (org-tag-alist '(("@home" . ?h)))
-          (org-todo-keywords nil)
-          (org-todo-repeat-to-state nil)
-          (org-todo-keyword-faces nil)
-          (org-priority-highest ?A)
-          (org-priority-default ?B)
-          (org-priority-lowest ?C)
-          (org-priority-faces nil)
-          (org-modern-priority nil)
-          (agile-gtd-projects ,projects)
-          (agile-gtd--warned-registry nil)
-          (agile-gtd--warned-entries nil)
-          (agile-gtd-enable-agenda-files t)
-          (agile-gtd-enable-refile-targets t)
-          (agile-gtd-enable-org-modern-visuals t))
-     (unwind-protect
-         (progn
-           (pcase-dolist (`(,name . ,content) ,files)
-             (let ((path (expand-file-name name tmpdir)))
-               (make-directory (file-name-directory path) t)
-               (with-temp-file path (insert content))))
-           ,@body)
-       (ignore-errors (org-super-agenda-mode -1))
-       (agile-gtd-startup-test-kill-buffers tmpdir)
-       (delete-directory tmpdir t))))
+  `(agile-gtd-test-with-sandbox
+     (let ((org-agenda-new-buffers nil)
+           (org-archive-location
+            (expand-file-name "archive/%s::datetree" org-directory))
+           (agile-gtd-projects ,projects)
+           (agile-gtd--warned-registry nil)
+           (agile-gtd--warned-entries nil))
+       (unwind-protect
+           (progn
+             (pcase-dolist (`(,name . ,content) ,files)
+               (let ((path (expand-file-name name org-directory)))
+                 (make-directory (file-name-directory path) t)
+                 (with-temp-file path (insert content))))
+             ,@body)
+         ;; Before the sandbox deletes the directory out from under them.
+         (agile-gtd-startup-test-kill-buffers org-directory)))))
 
 (defmacro agile-gtd-startup-test-with-registry (projects &rest body)
   "Run BODY with PROJECTS registered and no entry yet warned about.
@@ -219,9 +198,9 @@ and the file that survive are the first entry\\='s.")
                     (should (string-match-p (regexp-quote (format "%S" entry))
                                             warning))
                     (should (string-match-p (regexp-quote reason) warning))
-                    ;; The registry migration has to explain itself: whoever
-                    ;; reads the warning is looking at a declaration in the
-                    ;; shape the funnel rejected.
+                    ;; The warning has to explain itself: whoever reads it
+                    ;; is looking at a declaration in a shape the funnel
+                    ;; rejects, and needs to be shown the shape it accepts.
                     (should (string-match-p (regexp-quote ":tag \"tag\"")
                                             warning)))))
     (should (equal (agile-gtd-project-records)
@@ -316,6 +295,34 @@ The project itself is usable and stays: this is not a skip."
                    (list (format "Agile GTD: project files without their project tag: %s"
                                  (agile-gtd-startup-test-offender "archive/alpha.org"
                                                                   "alpha")))))))
+
+(ert-deftest agile-gtd-check-project-tags-reads-a-stock-archive ()
+  "A tagged archive under Org\'s default layout is not reported.
+`org-archive-location\' names the archive `<file>.org_archive\' unless it
+is configured otherwise, and no `auto-mode-alist\' entry claims that name,
+so a buffer visiting one arrives in Fundamental mode where `org-file-tags\'
+is nil whatever the file says.  Read that way, every correctly tagged
+archive on a stock Org setup is reported at every startup, forever."
+  (agile-gtd-startup-test-with-files
+      '((:tag "alpha"))
+      (list (cons "alpha.org" agile-gtd-startup-test-tagged)
+            (cons "alpha.org_archive" agile-gtd-startup-test-tagged))
+    (let ((org-archive-location "%s_archive::"))
+      (should-not (agile-gtd-startup-test-warnings
+                   #'agile-gtd-check-project-tags)))))
+
+(ert-deftest agile-gtd-check-project-tags-names-an-untagged-stock-archive ()
+  "The stock-layout archive is still reported when it really lacks the tag."
+  (agile-gtd-startup-test-with-files
+      '((:tag "alpha"))
+      (list (cons "alpha.org" agile-gtd-startup-test-tagged)
+            (cons "alpha.org_archive" agile-gtd-startup-test-untagged))
+    (let ((org-archive-location "%s_archive::"))
+      (should (equal (agile-gtd-startup-test-warnings
+                      #'agile-gtd-check-project-tags)
+                     (list (format "Agile GTD: project files without their project tag: %s"
+                                   (agile-gtd-startup-test-offender
+                                    "alpha.org_archive" "alpha"))))))))
 
 (ert-deftest agile-gtd-check-project-tags-is-silent-when-every-file-carries-its-tag ()
   (agile-gtd-startup-test-with-files
