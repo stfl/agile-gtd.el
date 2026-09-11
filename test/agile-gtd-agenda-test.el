@@ -76,24 +76,37 @@ DEADLINE: <2026-04-06 Mon>
     ;; Filtered query wraps with an outer `and'
     (should (eq 'and (car filtered)))))
 
-(ert-deftest agile-gtd-query-next-actions-uses-sprint-prio-threshold ()
-  "Next-actions query uses `agile-gtd-sprint-prio-threshold' as priority cut-off.
-The query contains `(agile-gtd-prio-deadline PRIO)' where PRIO equals the
-current max priority group."
-  ;; Default threshold C
-  (let* ((agile-gtd-max-priority-group nil)
-         (agile-gtd-sprint-prio-threshold ?C)
-         (org-priority-default ?E)
-         (query (agile-gtd-agenda-query-next-actions)))
-    (should (= (agile-gtd--current-max-priority-group) ?C))
-    (should (member `(agile-gtd-prio-deadline ,?C) (cdr query))))
-  ;; Alternate threshold B — confirms threshold is not hard-coded
-  (let* ((agile-gtd-max-priority-group nil)
-         (agile-gtd-sprint-prio-threshold ?B)
-         (org-priority-default ?E)
-         (query (agile-gtd-agenda-query-next-actions)))
-    (should (= (agile-gtd--current-max-priority-group) ?B))
-    (should (member `(agile-gtd-prio-deadline ,?B) (cdr query)))))
+(ert-deftest agile-gtd-view-ranges-run-narrowest-to-widest ()
+  "The range vocabulary is ordered, so wider and narrower are unambiguous."
+  (should (equal agile-gtd-view-ranges '(sprint backlog all someday))))
+
+(ert-deftest agile-gtd-view-range-cutoffs-follow-the-priority-configuration ()
+  "Each range takes its cutoff from a priority defcustom, never from a letter."
+  (ert-info ("Stock priority configuration")
+    (let ((agile-gtd-sprint-prio-threshold ?C)
+          (agile-gtd-priority-default ?E)
+          (agile-gtd-priority-lowest ?I))
+      (should (= (agile-gtd-view-range-priority 'sprint)  ?C))
+      (should (= (agile-gtd-view-range-priority 'backlog) ?E))
+      (should (= (agile-gtd-view-range-priority 'all)     ?I))
+      (should (= (agile-gtd-view-range-priority 'someday) ?I))))
+  (ert-info ("A reconfigured priority scale moves every cutoff with it")
+    (let ((agile-gtd-sprint-prio-threshold ?B)
+          (agile-gtd-priority-default ?D)
+          (agile-gtd-priority-lowest ?G))
+      (should (= (agile-gtd-view-range-priority 'sprint)  ?B))
+      (should (= (agile-gtd-view-range-priority 'backlog) ?D))
+      (should (= (agile-gtd-view-range-priority 'all)     ?G))
+      (should (= (agile-gtd-view-range-priority 'someday) ?G))))
+  (ert-info ("An unknown range is refused")
+    (should-error (agile-gtd-view-range-priority 'nonsense) :type 'user-error)))
+
+(ert-deftest agile-gtd-view-range-parked-items-belong-to-someday-alone ()
+  "Only the widest range takes in SOMEDAY entries and ticklers."
+  (should (agile-gtd-view-range-parked-p 'someday))
+  (should-not (agile-gtd-view-range-parked-p 'sprint))
+  (should-not (agile-gtd-view-range-parked-p 'backlog))
+  (should-not (agile-gtd-view-range-parked-p 'all)))
 
 (ert-deftest agile-gtd-agenda-query-backlog-returns-sexp ()
   "Backlog query returns a well-formed sexp with and without filter."
@@ -378,26 +391,66 @@ without signalling an error."
 
 (defun agile-gtd-agenda-integration-test-org-data ()
   "Return org data for agenda integration tests.
-Uses today's date so the scheduled items appear in the day block."
-  (concat "* NEXT [#A] High priority action\n\n"
-          "* NEXT [#C] Medium priority action\n\n"
-          "* PROJ Stuck project\n"
-          "** TODO Notes only\n\n"
-          ;; Scheduled today: appears in day block but NOT in Next Actions
-          ;; (excluded by `not (scheduled)').  No work tag → private only.
-          "* NEXT [#B] Scheduled today\n"
-          (format "SCHEDULED: <%s>\n" (format-time-string "%Y-%m-%d %a"))
-          ;; Work item scheduled today: appears in day block in work views only.
-          "* NEXT [#A] Work item today :#work:\n"
-          (format "SCHEDULED: <%s>\n" (format-time-string "%Y-%m-%d %a"))))
+Uses today's date so the scheduled items appear in the day block.
 
-(defmacro agile-gtd-agenda-test-build-view (cmd-key &rest body)
-  "Build org agenda for CMD-KEY in a fresh sandbox.
+The band items carry one priority cookie each and nothing else — no
+schedule, no deadline, no parent — so the only thing that can decide
+whether one of them is on screen is the view range's priority cutoff.
+With the stock configuration those cutoffs are C for `sprint', E for
+`backlog' and I for `all', which makes D the first band outside
+`sprint' and F the first band outside `backlog'."
+  (let ((today (format-time-string "%Y-%m-%d %a"))
+        (tomorrow (format-time-string "%Y-%m-%d %a"
+                    (time-add (current-time) (days-to-time 1)))))
+    (concat "* NEXT [#A] High priority action\n\n"
+            "* NEXT [#C] Medium priority action\n\n"
+            "* PROJ Stuck project\n"
+            "** TODO Notes only\n\n"
+            ;; Scheduled today: appears in day block but NOT in Next Actions
+            ;; (excluded by `not (scheduled)').  No work tag → private only.
+            "* NEXT [#B] Scheduled today\n"
+            (format "SCHEDULED: <%s>\n" today)
+            ;; Work item scheduled today: appears in day block in work views only.
+            "* NEXT [#A] Work item today :#work:\n"
+            (format "SCHEDULED: <%s>\n" today)
+            ;; Priority bands, one item per cutoff and one per first band beyond it.
+            ;; Every heading here is unique as a substring of every other, so a
+            ;; presence check cannot be satisfied by the wrong item.
+            "* NEXT [#C] Band C item\n\n"
+            "* NEXT [#D] Band D item\n\n"
+            "* NEXT [#E] Band E item\n\n"
+            "* NEXT [#F] Band F item\n\n"
+            "* NEXT [#I] Band I item\n\n"
+            ;; No cookie at all: Org reads it as the default priority, and so
+            ;; must the filter — in from `backlog' onwards, out of `sprint'.
+            "* NEXT Uncookied item\n\n"
+            ;; Parked work.  Both carry [#A] so no priority cutoff can explain
+            ;; their absence: only the parked gates keep them off screen.
+            "* NEXT [#A] Parked someday item :SOMEDAY:\n\n"
+            "* NEXT [#A] Parked future tickler :SOMEDAY:\n"
+            (format "SCHEDULED: <%s>\n\n" tomorrow)
+            ;; Being stuck is a process failure, so this one shows at every
+            ;; range despite sitting in the lowest priority band.
+            "* PROJ [#I] Band I stuck project\n"
+            "** TODO Notes only\n\n"
+            ;; Work-tagged counterparts for the work views.
+            "* NEXT Work uncookied task :#work:\n\n"
+            "* NEXT [#F] Work band F task :#work:\n\n"
+            ;; Project-tagged counterparts for a generated per-project view.
+            "* NEXT Acme uncookied job :acme:\n\n"
+            "* NEXT [#F] Acme band F job :acme:\n\n")))
+
+(defmacro agile-gtd-agenda-test-build-view-with (bindings cmd-key &rest body)
+  "Build org agenda for CMD-KEY in a fresh sandbox under extra BINDINGS.
+BINDINGS is a `let*' binding list that takes effect before
+`agile-gtd-enable' runs, so configuration that shapes the generated
+agenda commands is in place by the time they are built.
 BODY executes with `agenda-text' bound to the resulting agenda buffer's text."
-  (declare (indent 1) (debug t))
+  (declare (indent 2) (debug t))
   `(agile-gtd-org-ql-test-with-sandbox
     (let* ((file (expand-file-name "agenda-integration.org" org-directory))
-           (org-agenda-window-setup 'current-window))
+           (org-agenda-window-setup 'current-window)
+           ,@bindings)
       (with-temp-file file
         (insert (agile-gtd-agenda-integration-test-org-data)))
       (agile-gtd-enable)
@@ -413,6 +466,58 @@ BODY executes with `agenda-text' bound to the resulting agenda buffer's text."
               ,@body))
         (when-let ((buf (get-buffer org-agenda-buffer-name)))
           (kill-buffer buf))))))
+
+(defmacro agile-gtd-agenda-test-build-view (cmd-key &rest body)
+  "Build org agenda for CMD-KEY in a fresh sandbox.
+BODY executes with `agenda-text' bound to the resulting agenda buffer's text."
+  (declare (indent 1) (debug t))
+  `(agile-gtd-agenda-test-build-view-with () ,cmd-key ,@body))
+
+(defun agile-gtd-agenda-test-agenda-text ()
+  "Return the current contents of the agenda buffer, without text properties.
+Properties carry markers into the Org buffers behind the agenda, which two
+renders never share, so they are dropped to leave the text comparable."
+  (with-current-buffer (get-buffer org-agenda-buffer-name)
+    (buffer-substring-no-properties (point-min) (point-max))))
+
+(defun agile-gtd-agenda-test-current-range ()
+  "Return the range the rendered agenda buffer is showing."
+  (with-current-buffer (get-buffer org-agenda-buffer-name)
+    (agile-gtd-agenda-current-range)))
+
+(defun agile-gtd-agenda-test-rotate-to (range)
+  "Rotate the rendered agenda until it shows RANGE; return the agenda text.
+Steps one range at a time through the rotation commands, the way a user
+reaches a range, and gives up after one pass over the vocabulary so that
+a clamp cannot spin."
+  (with-current-buffer (get-buffer org-agenda-buffer-name)
+    (dotimes (_ (length agile-gtd-view-ranges))
+      (let ((current (agile-gtd-agenda-current-range)))
+        (cond
+         ((eq current range) nil)
+         ((< (cl-position current agile-gtd-view-ranges)
+             (cl-position range agile-gtd-view-ranges))
+          (agile-gtd-agenda-wider-range))
+         (t (agile-gtd-agenda-narrower-range)))))
+    ;; Refusing to return a view that is not at RANGE keeps every caller's
+    ;; assertions about that range from passing on a view that never moved.
+    (unless (eq (agile-gtd-agenda-current-range) range)
+      (error "Rotation stopped at %s instead of reaching %s"
+             (agile-gtd-agenda-current-range) range)))
+  (agile-gtd-agenda-test-agenda-text))
+
+(defun agile-gtd-agenda-test-block-onwards (text header)
+  "Return the part of agenda TEXT from block HEADER onwards, or nil.
+HEADER is matched as a prefix, so it finds a block header whether or not
+the active range is appended to it."
+  (when-let ((start (string-match (regexp-quote header) text)))
+    (substring-no-properties text start)))
+
+(defun agile-gtd-agenda-test-block-section (text header)
+  "Return block HEADER\\='s own section of agenda TEXT, or nil.
+The section runs from the header to the rule that starts the next block."
+  (when-let ((rest (agile-gtd-agenda-test-block-onwards text header)))
+    (substring rest 0 (string-match "^=+$" rest 1))))
 
 (ert-deftest agile-gtd-agenda-main-view-all-sections-populated ()
   "Main Agenda ('a') builds with all three blocks populated by test items."
@@ -615,5 +720,375 @@ Uses relative dates so scheduled/deadline items are testable."
           (explicit-headings (agile-gtd-org-ql-test-headings
                               buffer (agile-gtd-agenda-query-next-actions nil nil nil))))
       (should (equal default-headings explicit-headings)))))
+
+;;; Named view ranges — agenda buffer seam
+;;
+;; Every assertion below reads the rendered agenda: which headings are on
+;; screen, what the block header says, and in what order the sections come.
+;; The fixture puts one item in each priority band and nothing else on it, so
+;; a heading's presence is decided by the view range and by nothing else.
+
+(ert-deftest agile-gtd-agenda-main-view-opens-at-the-sprint-range ()
+  "Main Agenda (\"a\") opens at `sprint', so the default screen is short."
+  (agile-gtd-agenda-test-build-view "a"
+    (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+    (should (string-match-p "Next Actions \\[sprint\\]" agenda-text))))
+
+(ert-deftest agile-gtd-agenda-private-view-opens-at-the-sprint-range ()
+  "Private Agenda (\"pp\") opens at `sprint'."
+  (agile-gtd-agenda-test-build-view "pp"
+    (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+    (should (string-match-p "Next Actions \\[sprint\\]" agenda-text))
+    (should-not (string-match-p "Uncookied item" agenda-text))))
+
+(ert-deftest agile-gtd-agenda-work-view-opens-at-the-backlog-range ()
+  "Work Agenda (\"ww\") opens at `backlog', so unprioritised work is visible."
+  (agile-gtd-agenda-test-build-view "ww"
+    (should (eq (agile-gtd-agenda-test-current-range) 'backlog))
+    (should (string-match-p "Next Actions \\[backlog\\]" agenda-text))
+    (should (string-match-p "Work uncookied task" agenda-text))
+    (should-not (string-match-p "Work band F task" agenda-text))))
+
+(ert-deftest agile-gtd-agenda-project-view-opens-at-the-backlog-range ()
+  "A generated per-project agenda opens at `backlog', like the work agenda."
+  (agile-gtd-agenda-test-build-view-with
+      ((agile-gtd-projects '((:tag "acme" :name "ACME Corp" :key ?a))))
+      "wa"
+    (should (eq (agile-gtd-agenda-test-current-range) 'backlog))
+    (should (string-match-p "Next Actions \\[backlog\\]" agenda-text))
+    (should (string-match-p "Acme uncookied job" agenda-text))
+    (should-not (string-match-p "Acme band F job" agenda-text))))
+
+(ert-deftest agile-gtd-agenda-private-backlog-opens-at-the-all-range ()
+  "Private Backlog (\"pb\") opens at `all', so a backlog shows the long tail."
+  (agile-gtd-agenda-test-build-view "pb"
+    (should (eq (agile-gtd-agenda-test-current-range) 'all))
+    (should (string-match-p "Backlog \\[all\\]" agenda-text))))
+
+(ert-deftest agile-gtd-agenda-work-backlog-opens-at-the-all-range ()
+  "Work Backlog (\"wb\") opens at `all': being a backlog beats the work prefix."
+  (agile-gtd-agenda-test-build-view "wb"
+    (should (eq (agile-gtd-agenda-test-current-range) 'all))
+    (should (string-match-p "Backlog \\[all\\]" agenda-text))
+    (should (string-match-p "Work band F task" agenda-text))))
+
+(ert-deftest agile-gtd-agenda-item-without-a-cookie-joins-at-the-backlog-range ()
+  "An item carrying no priority cookie is out of `sprint' and in from `backlog'.
+Org reads a missing cookie as exactly the default priority, and so does the
+rank code; this is the filter agreeing with both."
+  (agile-gtd-agenda-test-build-view "a"
+    (ert-info ("sprint leaves it out")
+      (should-not (string-match-p "Uncookied item" agenda-text)))
+    (ert-info ("backlog takes it in")
+      (should (string-match-p "Uncookied item"
+                              (agile-gtd-agenda-test-rotate-to 'backlog))))))
+
+(ert-deftest agile-gtd-agenda-sprint-range-boundary ()
+  "At `sprint' the cutoff band is on screen and the band past it is not."
+  (agile-gtd-agenda-test-build-view "a"
+    (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+    (should (string-match-p "Band C item" agenda-text))
+    (should-not (string-match-p "Band D item" agenda-text))))
+
+(ert-deftest agile-gtd-agenda-backlog-range-boundary ()
+  "At `backlog' the default band is on screen and the band past it is not."
+  (agile-gtd-agenda-test-build-view "a"
+    (let ((text (agile-gtd-agenda-test-rotate-to 'backlog)))
+      (should (eq (agile-gtd-agenda-test-current-range) 'backlog))
+      (should (string-match-p "Band D item" text))
+      (should (string-match-p "Band E item" text))
+      (should-not (string-match-p "Band F item" text)))))
+
+(ert-deftest agile-gtd-agenda-all-range-takes-in-every-priority-band ()
+  "At `all' every priority band is on screen and only parked work is missing."
+  (agile-gtd-agenda-test-build-view "a"
+    (let ((text (agile-gtd-agenda-test-rotate-to 'all)))
+      (should (eq (agile-gtd-agenda-test-current-range) 'all))
+      (should (string-match-p "Band F item" text))
+      (should (string-match-p "Band I item" text))
+      (should-not (string-match-p "Parked someday item" text))
+      (should-not (string-match-p "Parked future tickler" text)))))
+
+(ert-deftest agile-gtd-agenda-parked-items-appear-only-at-the-someday-range ()
+  "Parked work stays off screen until the widest range.
+The parked items carry [#A], so no priority cutoff can account for their
+absence — only the someday and schedule gates can."
+  (agile-gtd-agenda-test-build-view "a"
+    (dolist (range '(sprint backlog all))
+      (ert-info ((format "range=%s" range))
+        (let ((text (agile-gtd-agenda-test-rotate-to range)))
+          (should-not (string-match-p "Parked someday item" text))
+          (should-not (string-match-p "Parked future tickler" text)))))
+    (ert-info ("range=someday")
+      (let ((text (agile-gtd-agenda-test-rotate-to 'someday)))
+        (should (string-match-p "Next Actions \\[someday\\]" text))
+        (should (string-match-p "Parked someday item" text))))))
+
+(ert-deftest agile-gtd-agenda-future-tickler-appears-at-the-someday-range ()
+  "A tickler scheduled in the future survives the schedule gate at `someday'.
+Lifting only the someday tag would leave the Tickler group permanently empty
+in an agenda view, which filters future schedules as a second, invisible gate."
+  (agile-gtd-agenda-test-build-view "a"
+    (should-not (string-match-p "Parked future tickler" agenda-text))
+    (should (string-match-p "Parked future tickler"
+                            (agile-gtd-agenda-test-rotate-to 'someday)))))
+
+(ert-deftest agile-gtd-agenda-backlog-view-shows-parked-items-at-the-someday-range ()
+  "`someday' means the same thing in a backlog view as in an agenda view."
+  (agile-gtd-agenda-test-build-view "pb"
+    (ert-info ("all, the declared range, leaves parked work out")
+      (should-not (string-match-p "Parked someday item" agenda-text))
+      (should-not (string-match-p "Parked future tickler" agenda-text)))
+    (ert-info ("someday brings both back")
+      (let ((text (agile-gtd-agenda-test-rotate-to 'someday)))
+        (should (string-match-p "Backlog \\[someday\\]" text))
+        (should (string-match-p "Parked someday item" text))
+        (should (string-match-p "Parked future tickler" text))))))
+
+(ert-deftest agile-gtd-agenda-backlog-view-is-filtered-by-range ()
+  "A backlog view narrows with the range, which an unfiltered backlog cannot."
+  (agile-gtd-agenda-test-build-view "pb"
+    (ert-info ("all admits every band")
+      (should (string-match-p "Band I item" agenda-text))
+      (should (string-match-p "Uncookied item" agenda-text))
+      (should (string-match-p "Band I stuck project" agenda-text)))
+    (ert-info ("sprint drops everything below the sprint cutoff")
+      (let ((text (agile-gtd-agenda-test-rotate-to 'sprint)))
+        (should (string-match-p "Backlog \\[sprint\\]" text))
+        (should (string-match-p "Band C item" text))
+        (should-not (string-match-p "Band I item" text))
+        (should-not (string-match-p "Uncookied item" text))
+        (should-not (string-match-p "Band I stuck project" text))))))
+
+(ert-deftest agile-gtd-agenda-rotation-changes-the-items-and-the-header ()
+  "Widening and narrowing redraw the view and restate the range in the header."
+  (agile-gtd-agenda-test-build-view "a"
+    (ert-info ("one step wider")
+      (with-current-buffer (get-buffer org-agenda-buffer-name)
+        (agile-gtd-agenda-wider-range))
+      (let ((text (agile-gtd-agenda-test-agenda-text)))
+        (should (eq (agile-gtd-agenda-test-current-range) 'backlog))
+        (should (string-match-p "Next Actions \\[backlog\\]" text))
+        (should (string-match-p "Uncookied item" text))))
+    (ert-info ("one step back")
+      (with-current-buffer (get-buffer org-agenda-buffer-name)
+        (agile-gtd-agenda-narrower-range))
+      (let ((text (agile-gtd-agenda-test-agenda-text)))
+        (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+        (should (string-match-p "Next Actions \\[sprint\\]" text))
+        (should-not (string-match-p "Uncookied item" text))))))
+
+(ert-deftest agile-gtd-agenda-set-range-jumps-straight-to-a-range ()
+  "Picking a range reaches it in one action rather than by stepping."
+  (agile-gtd-agenda-test-build-view "a"
+    (with-current-buffer (get-buffer org-agenda-buffer-name)
+      (agile-gtd-agenda-set-range 'someday))
+    (should (eq (agile-gtd-agenda-test-current-range) 'someday))
+    (let ((text (agile-gtd-agenda-test-agenda-text)))
+      (should (string-match-p "Next Actions \\[someday\\]" text))
+      (should (string-match-p "Parked someday item" text)))
+    (ert-info ("An unknown range is refused")
+      (with-current-buffer (get-buffer org-agenda-buffer-name)
+        (should-error (agile-gtd-agenda-set-range 'nonsense) :type 'user-error)))))
+
+(ert-deftest agile-gtd-agenda-widening-clamps-at-the-widest-range ()
+  "Widening past `someday' leaves the view exactly as it was."
+  (agile-gtd-agenda-test-build-view "a"
+    (let ((widest (agile-gtd-agenda-test-rotate-to 'someday)))
+      (with-current-buffer (get-buffer org-agenda-buffer-name)
+        (agile-gtd-agenda-wider-range))
+      (should (eq (agile-gtd-agenda-test-current-range) 'someday))
+      (should (equal (agile-gtd-agenda-test-agenda-text) widest)))))
+
+(ert-deftest agile-gtd-agenda-narrowing-clamps-at-the-narrowest-range ()
+  "Narrowing past `sprint' leaves the view exactly as it was."
+  (agile-gtd-agenda-test-build-view "a"
+    (let ((narrowest (agile-gtd-agenda-test-agenda-text)))
+      (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+      (with-current-buffer (get-buffer org-agenda-buffer-name)
+        (agile-gtd-agenda-narrower-range))
+      (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+      (should (equal (agile-gtd-agenda-test-agenda-text) narrowest)))))
+
+(ert-deftest agile-gtd-agenda-range-does-not-survive-a-rebuild ()
+  "Reopening a command returns it to its declared range."
+  (agile-gtd-agenda-test-build-view "a"
+    (agile-gtd-agenda-test-rotate-to 'someday)
+    (should (eq (agile-gtd-agenda-test-current-range) 'someday))
+    (kill-buffer (get-buffer org-agenda-buffer-name))
+    (org-agenda nil "a")
+    (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+    (let ((text (agile-gtd-agenda-test-agenda-text)))
+      (should (string-match-p "Next Actions \\[sprint\\]" text))
+      (should-not (string-match-p "Parked someday item" text)))))
+
+(ert-deftest agile-gtd-agenda-rotation-does-not-reach-another-command ()
+  "Widening one view leaves the next view built at its own declared range."
+  (agile-gtd-agenda-test-build-view "a"
+    (agile-gtd-agenda-test-rotate-to 'someday)
+    (should (eq (agile-gtd-agenda-test-current-range) 'someday))
+    (org-agenda nil "pb")
+    (should (eq (agile-gtd-agenda-test-current-range) 'all))
+    (let ((text (agile-gtd-agenda-test-agenda-text)))
+      (should (string-match-p "Backlog \\[all\\]" text))
+      (should-not (string-match-p "Parked someday item" text)))))
+
+(ert-deftest agile-gtd-agenda-stuck-projects-are-not-filtered-by-range ()
+  "Stuck Projects shows the same entries at every range, and names no range.
+Being stuck is a process failure whose priority is beside the point, so a
+stuck project in the lowest band shows even in the narrowest view."
+  (agile-gtd-agenda-test-build-view "a"
+    (let ((section (agile-gtd-agenda-test-block-section
+                    (agile-gtd-agenda-test-agenda-text) "Stuck Projects")))
+      (should section)
+      (ert-info ("A lowest-band stuck project shows in the narrowest range")
+        (should (string-match-p "Band I stuck project" section)))
+      (ert-info ("The header takes no range")
+        (should-not (string-match-p "Stuck Projects \\[" section)))
+      (dolist (range '(backlog all someday))
+        (ert-info ((format "range=%s" range))
+          (should (equal (agile-gtd-agenda-test-block-section
+                          (agile-gtd-agenda-test-rotate-to range)
+                          "Stuck Projects")
+                         section)))))))
+
+(ert-deftest agile-gtd-agenda-stuck-projects-stay-above-next-actions ()
+  "Stuck Projects keeps its place above Next Actions at every range."
+  (agile-gtd-agenda-test-build-view "a"
+    (dolist (range '(sprint backlog all someday))
+      (ert-info ((format "range=%s" range))
+        (let* ((text (agile-gtd-agenda-test-rotate-to range))
+               (stuck (string-match "Stuck Projects" text))
+               (next (string-match "Next Actions" text)))
+          (should stuck)
+          (should next)
+          (should (< stuck next)))))))
+
+(ert-deftest agile-gtd-agenda-day-block-is-unaffected-by-range ()
+  "The day block renders identically at every range, and is never duplicated.
+A deadline must not go missing because the item carrying it is low priority,
+and the Next Actions block must not name a task the day block already has."
+  (agile-gtd-agenda-test-build-view "a"
+    (let ((day (agile-gtd-agenda-test-block-section
+                (agile-gtd-agenda-test-agenda-text) "Day-agenda")))
+      (should day)
+      (should (string-match-p "Scheduled today" day))
+      (dolist (range '(backlog all someday))
+        (ert-info ((format "range=%s" range))
+          (let ((text (agile-gtd-agenda-test-rotate-to range)))
+            (should (equal (agile-gtd-agenda-test-block-section text "Day-agenda")
+                           day))
+            (let ((next-actions (agile-gtd-agenda-test-block-onwards
+                                 text "Next Actions")))
+              (should next-actions)
+              (should-not (string-match-p "Scheduled today" next-actions)))))))))
+
+(ert-deftest agile-gtd-agenda-rotation-refuses-an-agenda-with-no-ranged-block ()
+  "Rotating a view that declares no range says so rather than doing nothing."
+  (agile-gtd-agenda-test-build-view "rs"
+    (should-not (agile-gtd-agenda-test-current-range))
+    (with-current-buffer (get-buffer org-agenda-buffer-name)
+      (should-error (agile-gtd-agenda-wider-range) :type 'user-error)
+      (should-error (agile-gtd-agenda-narrower-range) :type 'user-error))))
+
+(ert-deftest agile-gtd-agenda-rotation-refuses-outside-an-agenda-buffer ()
+  "Outside an agenda there is no range to rotate, and the commands say so."
+  (with-temp-buffer
+    (should-not (agile-gtd-agenda-current-range))
+    (should-error (agile-gtd-agenda-wider-range) :type 'user-error)
+    (should-error (agile-gtd-agenda-narrower-range) :type 'user-error)))
+
+;;; Named view ranges — corpus query seam
+;;
+;; The one thing the rendered agenda cannot show: what the public query
+;; functions do when an external caller runs them outside any agenda buffer.
+
+(defmacro agile-gtd-agenda-test-with-range-data (&rest body)
+  "Run BODY over the range fixtures in a temporary Org buffer bound to `buffer'."
+  (declare (indent 0) (debug t))
+  `(agile-gtd-org-ql-test-with-sandbox
+    (let* ((file (expand-file-name "range-fixtures.org" org-directory))
+           (buffer nil))
+      (unwind-protect
+          (progn
+            (with-temp-file file
+              (insert (agile-gtd-agenda-integration-test-org-data)))
+            (setq buffer (find-file-noselect file))
+            (with-current-buffer buffer
+              (org-mode)
+              (agile-gtd-enable)
+              (org-set-regexps-and-options)
+              ,@body))
+        (when (buffer-live-p buffer)
+          (kill-buffer buffer))))))
+
+(ert-deftest agile-gtd-query-next-actions-pins-its-range-to-sprint ()
+  "Called with only a tag filter, the next-actions query is a `sprint' query.
+It stays one whatever range an agenda was left showing, so asking an
+assistant what the next actions are gives a reproducible answer."
+  (agile-gtd-agenda-test-with-range-data
+    (let ((pinned (agile-gtd-org-ql-test-headings
+                   buffer (agile-gtd-agenda-query-next-actions))))
+      (ert-info ("The pinned range is sprint")
+        (should (member "Band C item" pinned))
+        (should-not (member "Band D item" pinned))
+        (should-not (member "Uncookied item" pinned))
+        (should-not (member "Parked someday item" pinned))
+        (should (equal pinned
+                       (agile-gtd-org-ql-test-headings
+                        buffer (agile-gtd-agenda-query-next-actions nil 'sprint)))))
+      (ert-info ("Rotation state does not reach it")
+        (setq-local agile-gtd--agenda-range 'someday)
+        (dolist (range agile-gtd-view-ranges)
+          (ert-info ((format "override=%s" range))
+            (let ((agile-gtd--agenda-range-override range))
+              (should (equal (agile-gtd-org-ql-test-headings
+                              buffer (agile-gtd-agenda-query-next-actions))
+                             pinned)))))))))
+
+(ert-deftest agile-gtd-query-backlog-pins-its-range-to-all ()
+  "Called with only a tag filter, the backlog query is an `all' query.
+A backlog answers with the long tail, and parked work stays parked."
+  (agile-gtd-agenda-test-with-range-data
+    (let ((pinned (agile-gtd-org-ql-test-headings
+                   buffer (agile-gtd-agenda-query-backlog))))
+      (ert-info ("The pinned range is all")
+        (should (member "Band I item" pinned))
+        (should (member "Uncookied item" pinned))
+        (should-not (member "Parked someday item" pinned))
+        (should-not (member "Parked future tickler" pinned))
+        (should (equal pinned
+                       (agile-gtd-org-ql-test-headings
+                        buffer (agile-gtd-agenda-query-backlog nil 'all)))))
+      (ert-info ("Rotation state does not reach it")
+        (setq-local agile-gtd--agenda-range 'sprint)
+        (dolist (range agile-gtd-view-ranges)
+          (ert-info ((format "override=%s" range))
+            (let ((agile-gtd--agenda-range-override range))
+              (should (equal (agile-gtd-org-ql-test-headings
+                              buffer (agile-gtd-agenda-query-backlog))
+                             pinned)))))))))
+
+(ert-deftest agile-gtd-agenda-rotation-does-not-reach-the-public-queries ()
+  "A rotated agenda leaves the pinned public queries where they were.
+Rotation really happens here — the agenda is widened to `someday' and left
+there — and the query still answers at `sprint'."
+  (agile-gtd-agenda-test-build-view "a"
+    (agile-gtd-agenda-test-rotate-to 'someday)
+    (should (eq (agile-gtd-agenda-test-current-range) 'someday))
+    (cl-flet ((next-actions-in (query)
+                (org-ql-select file query :action '(org-get-heading t t t t))))
+      (ert-info ("Called from outside the agenda")
+        (let ((headings (next-actions-in
+                         (with-temp-buffer (agile-gtd-agenda-query-next-actions)))))
+          (should (member "Band C item" headings))
+          (should-not (member "Uncookied item" headings))
+          (should-not (member "Parked someday item" headings))))
+      (ert-info ("Called from inside the rotated agenda buffer")
+        (let ((headings (next-actions-in
+                         (with-current-buffer (get-buffer org-agenda-buffer-name)
+                           (agile-gtd-agenda-query-next-actions)))))
+          (should-not (member "Uncookied item" headings))
+          (should-not (member "Parked someday item" headings)))))))
 
 ;;; agile-gtd-agenda-test.el ends here

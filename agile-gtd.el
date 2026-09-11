@@ -1,6 +1,6 @@
 ;;; agile-gtd.el --- Agile GTD workflow for Org -*- lexical-binding: t; -*-
 
-;; Version: 0.2.0
+;; Version: 0.3.0
 ;; URL: https://github.com/stfl/agile-gtd
 ;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2"))
 ;; Keywords: outlines, calendar, tools
@@ -178,19 +178,10 @@ permitted."
   :type '(repeat string)
   :group 'agile-gtd)
 
-(defcustom agile-gtd-max-priority-group nil
-  "Highest visible priority group in agenda commands.
-
-When nil, derive it from `agile-gtd-priority-default'."
-  :type '(choice (const :tag "Derived from default" nil)
-          character)
-  :group 'agile-gtd)
-
 (defcustom agile-gtd-sprint-prio-threshold ?C
-  "Default priority threshold for the next-actions (sprint) view.
-Items at this priority or above (including via parent or deadline) appear
-in the next-actions query.  `agile-gtd-max-priority-group' overrides this
-interactively."
+  "Priority cutoff of the `sprint' view range.
+Items at this priority or above — by their own cookie, by their parent\\='s,
+or by deadline urgency — are in the sprint.  See `agile-gtd-view-ranges'."
   :type 'character
   :group 'agile-gtd)
 
@@ -283,8 +274,7 @@ When nil, derive it from `agile-gtd-priority-default'."
               agile-gtd-priority-default
               agile-gtd-priority-lowest)
     (error "Agile GTD priorities must satisfy highest <= default <= lowest"))
-  (dolist (priority (delq nil (list agile-gtd-max-priority-group
-                                    agile-gtd-backlog-priority-threshold)))
+  (dolist (priority (delq nil (list agile-gtd-backlog-priority-threshold)))
     (unless (agile-gtd--priority-in-range-p priority)
       (error "Priority %s is outside the configured Agile GTD range"
              priority))))
@@ -470,10 +460,29 @@ what keeps a `setq' of the registry as well guarded as a `setopt'."
   "Return the someday files used for refiling."
   (file-expand-wildcards (agile-gtd--expand-org-path agile-gtd-someday-files-glob)))
 
-(defun agile-gtd--current-max-priority-group ()
-  "Return the currently active maximum priority group."
-  (or agile-gtd-max-priority-group
-      agile-gtd-sprint-prio-threshold))
+(defconst agile-gtd-view-ranges '(sprint backlog all someday)
+  "Named agenda view ranges, ordered narrowest to widest.
+A range is the one knob an agenda view is widened and narrowed by: it
+fixes both the priority cutoff and whether parked items take part.  The
+cutoffs derive from the priority defcustoms rather than from characters
+written here, so reconfiguring the priority scale moves them with it.")
+
+(defun agile-gtd-view-range-priority (range)
+  "Return the cutoff priority character of RANGE.
+Entries at this priority or above — by their own cookie, by their
+parent\\='s, or by deadline urgency — are inside RANGE.  RANGE is one of
+`agile-gtd-view-ranges'."
+  (pcase range
+    ('sprint agile-gtd-sprint-prio-threshold)
+    ('backlog agile-gtd-priority-default)
+    ((or 'all 'someday) agile-gtd-priority-lowest)
+    (_ (user-error "Unknown Agile GTD view range: %S" range))))
+
+(defun agile-gtd-view-range-parked-p (range)
+  "Return non-nil when RANGE takes in parked items.
+Parked means SOMEDAY entries and ticklers — the things deliberately set
+aside — which only the widest range brings back into view."
+  (eq range 'someday))
 
 (defun agile-gtd--current-backlog-priority-threshold ()
   "Return the currently active backlog threshold."
@@ -735,24 +744,36 @@ TAG-FILTER-PRESET, when non-nil, is a list of strings like
             ',(agile-gtd--agenda-skip-form tag-filter-preset)))))))
 
 
-(defun agile-gtd-agenda-query-next-actions (&optional tag-filter priority hide-today)
-  "Return org-ql sexp for next actions at or above PRIORITY.
+(defun agile-gtd-agenda-query-next-actions (&optional tag-filter range hide-today)
+  "Return org-ql sexp for next actions inside RANGE.
 TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag.
-PRIORITY defaults to `agile-gtd--current-max-priority-group'.
-HIDE-TODAY, when non-nil, excludes items with any deadline or
-schedule (the agenda-view behaviour where today items appear in a
-separate section).  When nil (the default), items scheduled or due
-today or overdue are included.  Future-scheduled items are always
-excluded."
-  (let* ((prio (or priority (agile-gtd--current-max-priority-group)))
+RANGE is one of `agile-gtd-view-ranges' and defaults to `sprint'.  The
+default is pinned rather than read from whatever range an agenda buffer
+happens to be showing, so a caller outside the agenda — the org-mcp
+server passes TAG-FILTER and nothing else — always gets one query.
+HIDE-TODAY, when non-nil, excludes items the day block already carries,
+so the two sections do not name the same task twice.  When nil, items
+scheduled or due today or overdue are included."
+  (let* ((range (or range 'sprint))
+         (prio (agile-gtd-view-range-priority range))
+         (parked (agile-gtd-view-range-parked-p range))
          (base `(and (todo ,@(agile-gtd--action-keywords))
                      (agile-gtd-prio-deadline ,prio)
-                     (not (agile-gtd-someday))
+                     ,@(unless parked '((not (agile-gtd-someday))))
                      (not (agile-gtd-blocked))
-                     ,@(if hide-today
-                           '((not (deadline :to 0))
-                             (not (scheduled)))
-                         '((not (scheduled :from +1)))))))
+                     ,@(cond
+                        ;; A parked range exists to show ticklers, and a
+                        ;; tickler is a future schedule.  Gating on `:to 0'
+                        ;; rather than on any schedule keeps it, while today
+                        ;; and overdue items stay out of the day block's way.
+                        ((and hide-today parked)
+                         '((not (deadline :to 0))
+                           (not (scheduled :to 0))))
+                        (hide-today
+                         '((not (deadline :to 0))
+                           (not (scheduled))))
+                        (parked nil)
+                        (t '((not (scheduled :from +1))))))))
     (if tag-filter `(and ,base ,tag-filter) base)))
 
 (defun agile-gtd-agenda-query-inbox ()
@@ -760,13 +781,26 @@ excluded."
   `(and (todo)
         (tags ,@agile-gtd-inbox-tags)))
 
-(defun agile-gtd-agenda-query-backlog (&optional tag-filter)
-  "Return org-ql sexp for backlog (projects and standalone next actions).
-TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
-  (let ((base `(and (or (todo ,(agile-gtd--project-keyword))
-                        (agile-gtd-standalone-next))
-                    (not (agile-gtd-habit))
-                    (not (agile-gtd-blocked)))))
+(defun agile-gtd-agenda-query-backlog (&optional tag-filter range)
+  "Return org-ql sexp for the backlog inside RANGE.
+The backlog holds projects and standalone next actions.
+TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag.
+RANGE is one of `agile-gtd-view-ranges' and defaults to `all', which
+cuts off at `agile-gtd-priority-lowest' and so admits every priority.
+The default is pinned rather than read from whatever range an agenda
+buffer happens to be showing, so a caller outside the agenda always gets
+one query."
+  (let* ((range (or range 'all))
+         (prio (agile-gtd-view-range-priority range))
+         (parked (agile-gtd-view-range-parked-p range))
+         (base `(and (or (todo ,(agile-gtd--project-keyword))
+                         (agile-gtd-standalone-next))
+                     (agile-gtd-prio-deadline ,prio)
+                     (not (agile-gtd-habit))
+                     (not (agile-gtd-blocked))
+                     ,@(unless parked
+                         '((not (agile-gtd-someday))
+                           (not (agile-gtd-tickler)))))))
     (if tag-filter `(and ,base ,tag-filter) base)))
 
 (defun agile-gtd-agenda-query-stuck-projects (&optional tag-filter)
@@ -775,6 +809,38 @@ TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
   (if tag-filter
       `(and (agile-gtd-stuck-proj) ,tag-filter)
     '(agile-gtd-stuck-proj)))
+
+;; A ranged block carries a live call rather than a `',(...)' of an
+;; already-built query, because `org-agenda-run-series' evaluates both the
+;; block query and every lprops value at render time, with the agenda buffer
+;; current.  Baking the query at the time the command list is built would fix
+;; the range at startup and leave rotation nothing to change.
+(defvar agile-gtd--agenda-range-override nil
+  "Range forced onto the agenda currently being built, or nil.
+Bound dynamically by the rotation commands around `org-agenda-redo'.
+Nothing binds it during an ordinary build, so every block falls back to
+the range it declares and no agenda leaks its range into another.")
+
+(defvar-local agile-gtd--agenda-range nil
+  "Range the current agenda buffer was last rendered at.
+Set by `agile-gtd--agenda-block-range' as each ranged block renders, and
+read back by the rotation commands.  Nil in an agenda whose blocks
+declare no range, and outside the agenda entirely.")
+
+(defun agile-gtd--agenda-block-range (declared)
+  "Return the range the block rendering right now takes its cutoff from.
+DECLARED is the block\\='s own range, used unless rotation has bound
+`agile-gtd--agenda-range-override'.  The answer is recorded in the agenda
+buffer so the rotation commands know where they are starting from."
+  (let ((range (or agile-gtd--agenda-range-override declared)))
+    (setq-local agile-gtd--agenda-range range)
+    range))
+
+(defun agile-gtd--agenda-block-header (name declared)
+  "Return block header NAME with the active range appended.
+DECLARED is the block\\='s own range, used unless rotation has bound
+`agile-gtd--agenda-range-override'."
+  (format "%s [%s]" name (or agile-gtd--agenda-range-override declared)))
 
 (defun agile-gtd--project-agenda-commands ()
   "Return an agenda command for each project declaring a `:key' character.
@@ -793,8 +859,10 @@ the session down rather than cost one project its command."
           (org-ql-block ',(agile-gtd-agenda-query-stuck-projects filt)
                         ((org-ql-block-header "Stuck Projects")
                          (org-super-agenda-header-separator "")))
-          (org-ql-block ',(agile-gtd-agenda-query-next-actions filt nil t)
-                        ((org-ql-block-header "Next Actions")
+          (org-ql-block (agile-gtd-agenda-query-next-actions
+                         ',filt (agile-gtd--agenda-block-range 'backlog) t)
+                        ((org-ql-block-header
+                          (agile-gtd--agenda-block-header "Next Actions" 'backlog))
                          (org-super-agenda-groups ',(agile-gtd-rank-groups))))))))
    (cl-remove-if-not (lambda (record)
                        (characterp (agile-gtd--project-key record)))
@@ -812,8 +880,10 @@ the session down rather than cost one project its command."
       (org-ql-block ',(agile-gtd-agenda-query-stuck-projects)
                     ((org-ql-block-header "Stuck Projects")
                      (org-super-agenda-header-separator "")))
-      (org-ql-block ',(agile-gtd-agenda-query-next-actions nil nil t)
-                    ((org-ql-block-header "Next Actions")
+      (org-ql-block (agile-gtd-agenda-query-next-actions
+                     nil (agile-gtd--agenda-block-range 'sprint) t)
+                    ((org-ql-block-header
+                      (agile-gtd--agenda-block-header "Next Actions" 'sprint))
                      (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
     ("A" "Agenda Weekly"
      ((agenda ""
@@ -884,12 +954,16 @@ the session down rather than cost one project its command."
       (org-ql-block ',(agile-gtd-agenda-query-stuck-projects '(agile-gtd-private))
                     ((org-ql-block-header "Stuck Projects")
                      (org-super-agenda-header-separator "")))
-      (org-ql-block ',(agile-gtd-agenda-query-next-actions '(agile-gtd-private) nil t)
-                    ((org-ql-block-header "Next Actions")
+      (org-ql-block (agile-gtd-agenda-query-next-actions
+                     '(agile-gtd-private) (agile-gtd--agenda-block-range 'sprint) t)
+                    ((org-ql-block-header
+                      (agile-gtd--agenda-block-header "Next Actions" 'sprint))
                      (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
     ("pb" "Private Backlog"
-     ((org-ql-block ',(agile-gtd-agenda-query-backlog '(agile-gtd-private))
-                    ((org-ql-block-header "Backlog")
+     ((org-ql-block (agile-gtd-agenda-query-backlog
+                     '(agile-gtd-private) (agile-gtd--agenda-block-range 'all))
+                    ((org-ql-block-header
+                      (agile-gtd--agenda-block-header "Backlog" 'all))
                      (org-super-agenda-groups ',(agile-gtd-rank-groups))
                      (org-dim-blocked-tasks t)))))
     ("ps" "Private Stuck Projects"
@@ -903,12 +977,16 @@ the session down rather than cost one project its command."
       (org-ql-block ',(agile-gtd-agenda-query-stuck-projects '(agile-gtd-work))
                     ((org-ql-block-header "Stuck Projects")
                      (org-super-agenda-header-separator "")))
-      (org-ql-block ',(agile-gtd-agenda-query-next-actions '(agile-gtd-work) nil t)
-                    ((org-ql-block-header "Next Actions")
+      (org-ql-block (agile-gtd-agenda-query-next-actions
+                     '(agile-gtd-work) (agile-gtd--agenda-block-range 'backlog) t)
+                    ((org-ql-block-header
+                      (agile-gtd--agenda-block-header "Next Actions" 'backlog))
                      (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
     ("wb" "Work Backlog"
-     ((org-ql-block ',(agile-gtd-agenda-query-backlog '(agile-gtd-work))
-                    ((org-ql-block-header "Backlog")
+     ((org-ql-block (agile-gtd-agenda-query-backlog
+                     '(agile-gtd-work) (agile-gtd--agenda-block-range 'all))
+                    ((org-ql-block-header
+                      (agile-gtd--agenda-block-header "Backlog" 'all))
                      (org-super-agenda-groups ',(agile-gtd-rank-groups))
                      (org-dim-blocked-tasks t)))))
     ("ws" "Work Stuck Projects"
@@ -964,47 +1042,83 @@ With prefix argument DO-SCHEDULE, create a tickler."
   (interactive)
   (agile-gtd-agenda-toggle-someday '(4)))
 
-(defun agile-gtd-agenda-show-priorities (&optional priority)
-  "Show agenda items up to PRIORITY."
-  (interactive "P")
-  (let ((new-priority
-         (cond ((equal priority '(4))
-                (max agile-gtd-priority-highest (1- agile-gtd-priority-default)))
-               (priority)
-               (t (upcase (read-char (format "Show up to priority (%c-%c): "
-                                             org-priority-highest
-                                             org-priority-lowest)))))))
-    (unless (agile-gtd--priority-in-range-p new-priority)
-      (user-error "Priority must be between org-priority-highest and org-priority-lowest"))
-    (setq agile-gtd-max-priority-group new-priority)
-    (agile-gtd-refresh)
-    (message "Showing up to priority %c" new-priority)
-    (org-agenda-redo-all)))
+(defun agile-gtd-agenda-current-range ()
+  "Return the range the current agenda buffer renders at.
+Return nil outside an agenda buffer, and in an agenda built entirely
+from blocks that declare no range."
+  (and (derived-mode-p 'org-agenda-mode)
+       agile-gtd--agenda-range))
 
-(defun agile-gtd-agenda-reset-show-priorities ()
-  "Reset the agenda priority filter."
-  (interactive)
-  (setq agile-gtd-max-priority-group nil)
-  (agile-gtd-refresh)
-  (org-agenda-redo-all))
+(defun agile-gtd--agenda-require-range ()
+  "Return the current agenda buffer\\='s range, or signal a `user-error'."
+  (unless (derived-mode-p 'org-agenda-mode)
+    (user-error "Not in an Org agenda buffer"))
+  (or agile-gtd--agenda-range
+      (user-error "This agenda has no ranged block to widen or narrow")))
 
-(defun agile-gtd-agenda-show-more-priorities ()
-  "Expand the agenda to include lower-priority items."
-  (interactive)
-  (setq agile-gtd-max-priority-group
-        (min (1+ (agile-gtd--current-max-priority-group))
-             agile-gtd-priority-lowest))
-  (agile-gtd-refresh)
-  (org-agenda-redo-all))
+(defun agile-gtd--agenda-rebuild-at (range)
+  "Rebuild the current agenda with RANGE forced onto every ranged block.
+A nil RANGE returns each block to the range it declares.
+`org-agenda-redo' and not `org-agenda-redo-all': the override is a
+dynamic binding, and rebuilding the other agenda buffers while it is in
+effect would stamp this buffer\\='s range onto theirs."
+  (let ((agile-gtd--agenda-range-override range))
+    (org-agenda-redo)))
 
-(defun agile-gtd-agenda-show-less-priorities ()
-  "Restrict the agenda to higher-priority items."
+(defun agile-gtd-agenda-set-range (range)
+  "Rebuild the current agenda at RANGE.
+RANGE is one of `agile-gtd-view-ranges'."
+  (interactive
+   (progn
+     (agile-gtd--agenda-require-range)
+     (list (intern (completing-read "Agenda range: "
+                                    (mapcar #'symbol-name agile-gtd-view-ranges)
+                                    nil t)))))
+  (agile-gtd--agenda-require-range)
+  (unless (memq range agile-gtd-view-ranges)
+    (user-error "Unknown Agile GTD view range: %S" range))
+  (agile-gtd--agenda-rebuild-at range)
+  (message "Agenda range: %s" range))
+
+(defun agile-gtd-agenda-reset-range ()
+  "Rebuild the current agenda at each block\\='s declared range."
   (interactive)
-  (setq agile-gtd-max-priority-group
-        (max (1- (agile-gtd--current-max-priority-group))
-             agile-gtd-priority-highest))
-  (agile-gtd-refresh)
-  (org-agenda-redo-all))
+  (agile-gtd--agenda-require-range)
+  (agile-gtd--agenda-rebuild-at nil)
+  (message "Agenda range: back to the declared range"))
+
+(defun agile-gtd--agenda-rotate-range (step)
+  "Rebuild the current agenda STEP places along `agile-gtd-view-ranges'.
+STEP is 1 to widen and -1 to narrow.  Rotation clamps at both ends
+rather than wrapping, because the sprint and the everything-view are
+where someone is heading, not stations on a loop to be passed through."
+  (let* ((current (agile-gtd--agenda-require-range))
+         (position (cl-position current agile-gtd-view-ranges))
+         (index (and position (+ position step)))
+         (next (and index (>= index 0) (nth index agile-gtd-view-ranges))))
+    (unless position
+      (error "Range %s is not one of `agile-gtd-view-ranges'" current))
+    (if (null next)
+        (message "Already at the %s range (%s)"
+                 (if (> step 0) "widest" "narrowest")
+                 current)
+      (agile-gtd--agenda-rebuild-at next)
+      (message "Agenda range: %s" next))))
+
+(defun agile-gtd-agenda-wider-range ()
+  "Rebuild the current agenda one range wider, toward `someday'."
+  (interactive)
+  (agile-gtd--agenda-rotate-range 1))
+
+(defun agile-gtd-agenda-narrower-range ()
+  "Rebuild the current agenda one range narrower, toward `sprint'."
+  (interactive)
+  (agile-gtd--agenda-rotate-range -1))
+
+(defalias 'agile-gtd-agenda-show-priorities #'agile-gtd-agenda-set-range)
+(defalias 'agile-gtd-agenda-reset-show-priorities #'agile-gtd-agenda-reset-range)
+(defalias 'agile-gtd-agenda-show-more-priorities #'agile-gtd-agenda-wider-range)
+(defalias 'agile-gtd-agenda-show-less-priorities #'agile-gtd-agenda-narrower-range)
 
 (org-ql-defpred agile-gtd-tickler ()
   "Match entries in the tickler."
@@ -1104,15 +1218,19 @@ Integrates with org-edna when `org-edna-mode' is active via `org-blocker-hook'."
 (org-ql-defpred agile-gtd-prio-deadline (priority)
   "Match entries at or above PRIORITY urgency.
 An entry qualifies when any of the following hold:
-- its own priority is >= PRIORITY
-- it has no explicit priority and the current sprint threshold
-  is more generous than `org-priority-default'
-- its direct parent's priority qualifies
+- its own priority is at or above PRIORITY
+- it carries no priority cookie and PRIORITY has reached
+  `agile-gtd-priority-default'
+- its direct parent\\='s priority qualifies
 - its deadline urgency qualifies"
   :normalizers
   ((`(,predicate-names ,prio)
-    (let ((include-no-prio (> (agile-gtd--current-max-priority-group)
-                              org-priority-default)))
+    ;; An entry without a cookie counts as exactly `agile-gtd-priority-default'
+    ;; — the same reading `agile-gtd--backlog-rank' gives it — so it joins the
+    ;; result once the cutoff itself reaches the default, and not before.  The
+    ;; test is on PRIO and nothing global: one query, one cutoff, whatever any
+    ;; agenda buffer happens to be showing.
+    (let ((include-no-prio (>= prio agile-gtd-priority-default)))
       (rec `(or (priority >= ,(char-to-string prio))
                 ,@(when include-no-prio
                     '((not (priority))))

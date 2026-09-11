@@ -1,7 +1,7 @@
 ;; -*- mode: eask; lexical-binding: t; -*-
 
 (package "agile-gtd"
-         "0.2.0"
+         "0.3.0"
          "Agile GTD workflow for Org")
 
 (website-url "https://github.com/stfl/agile-gtd")

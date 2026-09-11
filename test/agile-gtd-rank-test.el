@@ -93,3 +93,22 @@
         (ert-info ((format "prio=%S parent=%S dl=%S sc=%S" prio parent-prio dl-delta sc-delta))
           (should (= (agile-gtd--backlog-rank prio parent-prio dl-delta sc-delta)
                      expected)))))))
+
+(ert-deftest agile-gtd-backlog-rank-puts-an-item-with-no-cookie-in-the-default-band ()
+  "An item carrying no priority cookie ranks in the Default band.
+The view-range filter reads a missing cookie as exactly
+`agile-gtd-priority-default', which is the reading the rank code has always
+given it.  Pinning the rank here keeps the two from being brought back into
+agreement by moving the rank instead of the filter."
+  (let ((bare (agile-gtd--backlog-rank nil nil nil)))
+    (ert-info ("It is the default rank, not an explicit priority's rank")
+      (should (= bare (agile-gtd--rank-default))))
+    (ert-info ("The band sits below the default priority and above the next one")
+      (should (< (agile-gtd--prio-rank agile-gtd-priority-default) bare))
+      (should (< bare (agile-gtd--prio-rank (1+ agile-gtd-priority-default)))))
+    (ert-info ("The rank groups give that band its own heading")
+      (let ((group (cl-find-if (lambda (g)
+                                 (equal (plist-get g :name) "Default Priority"))
+                               (agile-gtd-rank-groups))))
+        (should group)
+        (should (= (plist-get group :order) bare))))))
