@@ -1,6 +1,6 @@
 ;;; agile-gtd.el --- Agile GTD workflow for Org -*- lexical-binding: t; -*-
 
-;; Version: 0.3.0
+;; Version: 0.4.0
 ;; URL: https://github.com/stfl/agile-gtd
 ;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2"))
 ;; Keywords: outlines, calendar, tools
