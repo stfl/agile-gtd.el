@@ -557,6 +557,19 @@ so the effective maximum is determined by `agile-gtd-priority-lowest'."
   (when (agile-gtd--priority-in-range-p priority)
     (+ (* 10 (- priority agile-gtd-priority-highest)) 1)))
 
+(defun agile-gtd--rank-band-top (priority)
+  "Return the highest rank still inside PRIORITY\='s band, or nil.
+A band is the ten ranks a priority owns: it opens at `agile-gtd--prio-rank'
+and closes here, one below where the next priority opens.
+
+One number does two jobs.  `agile-gtd-rank-groups' closes each priority
+group at its band top, and a view range admits an entry when its rank is at
+or below the cutoff priority\='s band top.  Filtering and grouping therefore
+read the same boundary, and an agenda cannot show a heading for a priority
+its range never claimed to reach."
+  (when-let ((r (agile-gtd--prio-rank priority)))
+    (+ (* 10 (/ r 10)) 9)))
+
 (defconst agile-gtd--priority-deadline-days
   '((?A . 2)
     (?B . 5)
@@ -584,27 +597,43 @@ Overdue (negative) returns DAYS itself; today returns -1; beyond all thresholds 
 (defconst agile-gtd--rank-inf 99999)
 
 (defun agile-gtd--rank-default ()
-  "Return the rank for items with no explicit priority, deadline, or parent.
-Computed as the top of the 10-wide band for `agile-gtd-priority-default':
-  floor(prio-rank(default) / 10) * 10 + 9.
-With default ?E (rank 41) this yields 49, sitting between E (40..48) and F (50+)."
-  (let ((r (agile-gtd--prio-rank agile-gtd-priority-default)))
-    (+ (* 10 (/ r 10)) 9)))
+  "Return the rank of an entry carrying no priority cookie of its own.
+Org reads a missing cookie as `agile-gtd-priority-default', so the rank is
+that priority\='s band top: below every entry that spells the default out,
+above the first priority beneath it.  With default ?E it is 49, sitting
+between E (41) and F (51)."
+  (agile-gtd--rank-band-top agile-gtd-priority-default))
 
 (defun agile-gtd--backlog-rank (prio parent-prio dl-delta &optional sc-delta)
-  "Return numeric backlog rank.
+  "Return the numeric rank of an entry.  Lower ranks come first.
 PRIO and PARENT-PRIO are priority characters or nil.
 DL-DELTA and SC-DELTA are integer days until deadline/scheduled, or nil.
-SC-DELTA only influences rank when <= 0 (today or overdue); future
-scheduled dates are ignored."
-  (let* ((own      (or (agile-gtd--prio-rank prio)        agile-gtd--rank-inf))
-         (par      (or (agile-gtd--prio-rank parent-prio) agile-gtd--rank-inf))
-         (dl       (if dl-delta (agile-gtd--deadline-rank dl-delta) agile-gtd--rank-inf))
-         (sc       (if (and sc-delta (<= sc-delta 0))
-                       (agile-gtd--deadline-rank sc-delta)
-                     agile-gtd--rank-inf))
-         (combined (min own par dl sc)))
-    (if (>= combined agile-gtd--rank-inf) (agile-gtd--rank-default) combined)))
+
+Two ingredients, read differently.
+
+A cookie sets the floor.  The entry\='s own cookie and its parent\='s are
+both priority statements about the same work, so the stronger of the two
+stands; an entry that states neither is default-priority work and takes
+`agile-gtd--rank-default\='.  Inheriting matters: a bare next action under a
+low project is low-priority work and must rank as such, or narrowing a view
+range would leave it on screen while the project it belongs to is gone.
+
+A date only ever lifts.  An approaching deadline, and a schedule that has
+come due, make work more urgent than its cookie says; a date far enough out
+to be less urgent says nothing, and leaves the floor where it was.
+SC-DELTA is read only when it is at or below zero, because work scheduled
+for a later day is not yet in hand at all."
+  (let* ((own  (agile-gtd--prio-rank prio))
+         (par  (agile-gtd--prio-rank parent-prio))
+         (base (cond ((and own par) (min own par))
+                     (own)
+                     (par)
+                     (t (agile-gtd--rank-default))))
+         (dl   (if dl-delta (agile-gtd--deadline-rank dl-delta) agile-gtd--rank-inf))
+         (sc   (if (and sc-delta (<= sc-delta 0))
+                   (agile-gtd--deadline-rank sc-delta)
+                 agile-gtd--rank-inf)))
+    (min base dl sc)))
 
 (defun agile-gtd--deadline-window (priority)
   "Return the deadline window in days for PRIORITY (hard-coded table)."
@@ -637,20 +666,6 @@ scheduled dates are ignored."
     (and project-priority
          (= project-priority priority))))
 
-(defun agile-gtd-priority-groups ()
-  "Return priority-based org-super-agenda groups."
-  (append
-   `((:tag ,agile-gtd-someday-tag :order 90))
-   (mapcar (lambda (priority)
-             (let ((priority-string (char-to-string priority)))
-               `(:name ,(format "[#%s] Priority %s" priority-string priority-string)
-                 :priority ,priority-string
-                 :order ,priority)))
-           (agile-gtd--priority-range))
-   `((:name "Default Priority"
-      :anything t
-      :order ,(+ 0.5 org-priority-default)))))
-
 (defun agile-gtd--rank-for-item (item)
   "Return the effective backlog rank for agenda ITEM string, or nil."
   (when-let ((marker (org-find-text-property-in-string 'org-marker item)))
@@ -659,15 +674,23 @@ scheduled dates are ignored."
 
 (defun agile-gtd-rank-groups ()
   "Return rank-mark org-super-agenda groups.
-Groups use upper-bound rank checks; first-match semantics means no lower
-bound is needed per group.
 
-Sequence: Tickler | Someday | Today&Overdue(≤0) | A(≤9) | B(≤19) | C(≤29)
-| D(≤39) | Default(=49) | E(≤49) | F(≤59) | G(≤69) | H(≤79) | I | Rest.
+org-super-agenda hands an entry to the first group in this list that
+claims it, so list order is precedence and `:order' is only what the
+reader sees.  The two run opposite ways here, and deliberately.
 
-Default group precedes E so rank `(agile-gtd--rank-default)' (49 by default)
-is consumed before E's (≤49) check; E then effectively captures 40..48.
-hi per priority P: (+ (* 10 (/ (prio-rank P) 10)) 9) — uniform formula."
+Precedence, most specific first: the parked groups take their entries
+before anything else can, because a tickler is a schedule and a SOMEDAY
+tag and would otherwise be read as either; then what is due or overdue;
+then what waits on a later date; then the priority bands, each closed at
+its `agile-gtd--rank-band-top' so the next band down catches the rest.
+
+On screen, in `:order': the priorities first, because they are the work
+actually on offer, then Scheduled, then the parked groups last.
+
+The Default group is listed ahead of the default priority's own group so
+that `agile-gtd--rank-default' is claimed before that group's band-top
+check could swallow it."
   (append
    `((:name "Tickler"
       :and (:scheduled t :tag ,agile-gtd-someday-tag)
@@ -679,12 +702,19 @@ hi per priority P: (+ (* 10 (/ (prio-rank P) 10)) 9) — uniform formula."
       :pred (lambda (item)
               (when-let ((rank (agile-gtd--rank-for-item item)))
                 (<= rank 0)))
-      :order 0))
+      :order 0)
+     ;; Work carrying a date later than today is spoken for until that day
+     ;; comes, so it is collected on its own rather than offered among the
+     ;; priorities.  Only the widest range admits any of it in the first
+     ;; place; at every other range this group renders empty.
+     (:name "Scheduled"
+      :scheduled future
+      :order 900))
    (cl-mapcan
     (lambda (prio)
       (let* ((r    (agile-gtd--prio-rank prio))
              (hi   (unless (= prio agile-gtd-priority-lowest)
-                     (+ (* 10 (/ r 10)) 9)))
+                     (agile-gtd--rank-band-top prio)))
              (name (format "[#%c] Priority %c" prio prio))
              (prio-group
               `(:name ,name
@@ -758,7 +788,7 @@ scheduled or due today or overdue are included."
          (prio (agile-gtd-view-range-priority range))
          (parked (agile-gtd-view-range-parked-p range))
          (base `(and (todo ,@(agile-gtd--action-keywords))
-                     (agile-gtd-prio-deadline ,prio)
+                     (agile-gtd-within-range ,prio)
                      ,@(unless parked '((not (agile-gtd-someday))))
                      (not (agile-gtd-blocked))
                      ,@(cond
@@ -789,18 +819,24 @@ RANGE is one of `agile-gtd-view-ranges' and defaults to `all', which
 cuts off at `agile-gtd-priority-lowest' and so admits every priority.
 The default is pinned rather than read from whatever range an agenda
 buffer happens to be showing, so a caller outside the agenda always gets
-one query."
+one query.
+
+Work scheduled for a later day is not backlog work: it is already spoken
+for, and becomes relevant on that day and not before.  Every range short
+of the widest therefore leaves it out, and `someday' — which exists to
+show what has been set aside — brings it back."
   (let* ((range (or range 'all))
          (prio (agile-gtd-view-range-priority range))
          (parked (agile-gtd-view-range-parked-p range))
          (base `(and (or (todo ,(agile-gtd--project-keyword))
                          (agile-gtd-standalone-next))
-                     (agile-gtd-prio-deadline ,prio)
+                     (agile-gtd-within-range ,prio)
                      (not (agile-gtd-habit))
                      (not (agile-gtd-blocked))
                      ,@(unless parked
                          '((not (agile-gtd-someday))
-                           (not (agile-gtd-tickler)))))))
+                           (not (agile-gtd-tickler))
+                           (not (scheduled :from +1)))))))
     (if tag-filter `(and ,base ,tag-filter) base)))
 
 (defun agile-gtd-agenda-query-stuck-projects (&optional tag-filter)
@@ -922,17 +958,17 @@ the session down rather than cost one project its command."
       (org-ql-block (agile-gtd-agenda-query-stuck-projects)
                     ((org-ql-block-header "Stuck Projects")
                      (org-super-agenda-header-separator "")
-                     (org-super-agenda-groups ',(agile-gtd-priority-groups))))))
+                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
     ("rs" "Stuck Projects"
      ((org-ql-block '(agile-gtd-stuck-proj)
                     ((org-ql-block-header "Stuck Projects")
                      (org-super-agenda-header-separator "")
-                     (org-super-agenda-groups ',(agile-gtd-priority-groups))))))
+                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
     ("rt" "Tangling TODOs"
      ((org-ql-block '(agile-gtd-tangling)
                     ((org-ql-block-header "Tangling TODOs")
                      (org-super-agenda-header-separator "")
-                     (org-super-agenda-groups ',(agile-gtd-priority-groups))))))
+                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
     ("rS" "SOMEDAY"
      ((org-ql-block `(and (todo ,(agile-gtd--project-keyword))
                           (or (and (priority <= (char-to-string ,(agile-gtd--current-backlog-priority-threshold)))
@@ -1215,27 +1251,27 @@ Integrates with org-edna when `org-edna-mode' is active via `org-blocker-hook'."
   :body
   (org-entry-blocked-p))
 
-(org-ql-defpred agile-gtd-prio-deadline (priority)
-  "Match entries at or above PRIORITY urgency.
-An entry qualifies when any of the following hold:
-- its own priority is at or above PRIORITY
-- it carries no priority cookie and PRIORITY has reached
-  `agile-gtd-priority-default'
-- its direct parent\\='s priority qualifies
-- its deadline urgency qualifies"
+(org-ql-defpred (agile-gtd-within-range agile-gtd-prio-deadline) (priority)
+  "Match entries ranking at or above PRIORITY\\='s band.
+The test is `agile-gtd--item-rank' against `agile-gtd--rank-band-top' — the
+one number that also closes PRIORITY\\='s group in `agile-gtd-rank-groups'.
+Reading the rank rather than re-deriving the cutoff from cookies, parents
+and deadlines separately is what keeps a view range honest: every entry the
+range admits has a group at or above the cutoff to land in, so the agenda
+grows no heading for a priority the range stops short of.
+
+Rank collapses four claims on urgency into one number — the entry\\='s own
+cookie, its direct parent\\='s, an approaching deadline, and a schedule that
+has come due — so each of those still admits an entry on its own.
+
+The test is on PRIORITY and nothing global: one query, one cutoff, whatever
+any agenda buffer happens to be showing."
   :normalizers
   ((`(,predicate-names ,prio)
-    ;; An entry without a cookie counts as exactly `agile-gtd-priority-default'
-    ;; — the same reading `agile-gtd--backlog-rank' gives it — so it joins the
-    ;; result once the cutoff itself reaches the default, and not before.  The
-    ;; test is on PRIO and nothing global: one query, one cutoff, whatever any
-    ;; agenda buffer happens to be showing.
-    (let ((include-no-prio (>= prio agile-gtd-priority-default)))
-      (rec `(or (priority >= ,(char-to-string prio))
-                ,@(when include-no-prio
-                    '((not (priority))))
-                (agile-gtd-parent-prio <= ,prio)
-                (agile-gtd-deadline-prio <= ,prio)))))))
+    `(agile-gtd-within-range ,prio)))
+  :body
+  (when-let ((top (agile-gtd--rank-band-top priority)))
+    (<= (agile-gtd--item-rank) top)))
 
 (defun agile-gtd-trigger-next-sibling ()
   "Set TRIGGER on the current task to advance the next sibling to NEXT."

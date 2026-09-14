@@ -36,11 +36,17 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with five companion te
 **Priority system** (`agile-gtd-priority-highest/default/lowest`, A–I range)
 - `agile-gtd--priority-range` derives the active character range
 - `agile-gtd--prio-rank` / `agile-gtd--backlog-rank` map priorities to numeric ranks used for sorting
+- `agile-gtd--rank-band-top` closes a priority's ten-rank band; it is the single boundary both the view-range filter and the rank groups read, so the two cannot disagree
 - Rank functions are derived from the configured range and must not hard-code character values
 
 **TODO keywords**
 - Sequence: `TODO → NEXT → WAIT → PROJ → EPIC | DONE, IDEA, KILL`
 - Public accessors: `agile-gtd-project-keyword`, `agile-gtd-action-keywords`
+
+**View ranges** (`agile-gtd-view-ranges`: sprint -> backlog -> all -> someday)
+- `agile-gtd-within-range` is the org-ql predicate every ranged query filters on; it tests `agile-gtd--item-rank` against the cutoff's `agile-gtd--rank-band-top`
+- Grouping and filtering must stay derived from rank. Re-deriving a cutoff from cookies, parents or deadlines separately is what produced headings for priorities a range had excluded
+- Work scheduled beyond today is excluded from every range but `someday`
 
 **Agenda queries** (org-ql based)
 - `agile-gtd-agenda-query-next-actions` — sprint / next-actions view
@@ -51,6 +57,8 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with five companion te
 
 **Rank / sort key** (`agile-gtd--item-rank`, `agile-gtd--item-rank<`)
 - Composite score from item priority, parent-project priority, deadline proximity, and scheduled date
+- Cookies set the floor: the stronger of the item's own and its parent's, or `agile-gtd--rank-default` when neither states one
+- Dates only ever lift that floor; a deadline further out than the floor already sits is ignored rather than demoting the item
 - Scheduled only affects rank when `sc-delta <= 0` (today or overdue); future scheduled dates are ignored
 - `agile-gtd--backlog-rank` accepts an optional `sc-delta` arg with the same convention as `dl-delta`
 - `agile-gtd-rank` / `agile-gtd-agenda-rank` display a breakdown including both Deadline and Scheduled
@@ -78,6 +86,7 @@ Tests live in `test/` and are split by concern:
 | `agile-gtd-rank-test.el` | rank and sort functions |
 | `agile-gtd-org-ql-predicates-test.el` | custom org-ql predicates |
 | `agile-gtd-agenda-test.el` | agenda query helpers |
+| `agile-gtd-range-test.el` | view-range cutoffs, the rank/grouping contract, and the Scheduled group |
 | `agile-gtd-startup-test.el` | the project registry, its normalisation and skip-and-warn, and the project-tag startup check |
 
 The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd variables to clean defaults and using a temporary `org-directory`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.

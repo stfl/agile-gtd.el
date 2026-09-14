@@ -424,6 +424,17 @@ With the stock configuration those cutoffs are C for `sprint', E for
             ;; No cookie at all: Org reads it as the default priority, and so
             ;; must the filter — in from `backlog' onwards, out of `sprint'.
             "* NEXT Uncookied item\n\n"
+            ;; A bare action under a low-cookied project.  It ranks where its
+            ;; parent puts it, so it must leave `backlog' at the same cutoff a
+            ;; [#G] cookie of its own would take it out at.  Reading a missing
+            ;; cookie as the default and stopping there is the bug this pins.
+            "* PROJ [#G] Band G parent project\n"
+            "** NEXT Bare child of band G\n\n"
+            ;; Scheduled past today, carrying [#A] so no priority cutoff can
+            ;; account for its absence: only the date keeps it off screen
+            ;; until `someday', where it is the Scheduled group's own item.
+            "* NEXT [#A] Deferred by a later date\n"
+            (format "SCHEDULED: <%s>\n\n" tomorrow)
             ;; Parked work.  Both carry [#A] so no priority cutoff can explain
             ;; their absence: only the parked gates keep them off screen.
             "* NEXT [#A] Parked someday item :SOMEDAY:\n\n"
@@ -1090,5 +1101,7 @@ there — and the query still answers at `sprint'."
                            (agile-gtd-agenda-query-next-actions)))))
           (should-not (member "Uncookied item" headings))
           (should-not (member "Parked someday item" headings)))))))
+
+(provide 'agile-gtd-agenda-test)
 
 ;;; agile-gtd-agenda-test.el ends here

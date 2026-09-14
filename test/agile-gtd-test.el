@@ -94,15 +94,19 @@
                               (nth 4 protocol))))))
 
 (ert-deftest agile-gtd-rank-groups-cover-the-range ()
+  "Every group is accounted for, and the fixed ones lead in precedence order.
+org-super-agenda gives an entry to the first group that claims it, so the
+four listed here have to come before the priority bands: each recognises
+something a band would otherwise swallow."
   (agile-gtd-test-with-sandbox
-    (let ((groups (agile-gtd-rank-groups)))
-      ;; 3 fixed-prefix + (length range) prio-groups + 1 extra Default split
-      ;; + 1 trailing "Not Grouped" catch-all
+    (let* ((groups (agile-gtd-rank-groups))
+           (fixed '("Tickler" "Someday" "Today & Overdue" "Scheduled")))
+      ;; fixed + one per priority + the extra Default split + the catch-all
       (should (= (length groups)
-                 (+ 5 (length (agile-gtd--priority-range)))))
-      (should (equal (plist-get (nth 0 groups) :name) "Tickler"))
-      (should (equal (plist-get (nth 1 groups) :name) "Someday"))
-      (should (equal (plist-get (nth 2 groups) :name) "Today & Overdue"))
+                 (+ (length fixed) 2 (length (agile-gtd--priority-range)))))
+      (should (equal (mapcar (lambda (g) (plist-get g :name))
+                             (seq-take groups (length fixed)))
+                     fixed))
       (should (equal (plist-get (car (last groups)) :name)
                      "Not Grouped")))))
 

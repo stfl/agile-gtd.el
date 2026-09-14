@@ -99,14 +99,17 @@ of a task.  Both are mapped to an effective priority using the same table:
 | <=30    | G                  |
 | <=60    | H                  |
 
-=DEADLINE= affects rank for any future date (it pulls items upward as the
-deadline approaches).
+A date can only ever move an item /up/.  A =DEADLINE= near enough to fall in
+the table pulls the item to that effective priority; one further out says
+nothing, and leaves the item exactly where its own or its parent's priority
+already put it.  An unprioritised task due in three months is still default
+backlog work, not the lowest thing on the list.
 
-=SCHEDULED= only affects rank when it is today or overdue (delta ≤ 0).
-A future =SCHEDULED= date does not change the rank — the item is simply not
-yet due and remains sorted by its explicit priority alone.  This matches the
-query behaviour: items scheduled in the future are excluded from next-action
-views entirely.
+=SCHEDULED= counts only once it is today or overdue (delta ≤ 0).  A future
+=SCHEDULED= date is not a rank at all: the work is spoken for until that day
+comes.  Items scheduled ahead are excluded from the next-action and backlog
+views outright, and reappear only at the widest range, where they collect
+under their own =Scheduled= heading.
 
 * Tags
 
@@ -150,11 +153,30 @@ never from a hard-coded letter:
 | =all=     | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded. |
 | =someday= | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                      |
 
+*** What a cutoff actually tests
+
+A range admits an item when its /rank/ — the one number
+~agile-gtd--item-rank~ computes, and the same one the priority groups are
+built from — is at or above the cutoff priority's band.  Filtering and
+grouping read the same boundary, so a range can never show a heading for a
+priority it stops short of.
+
+Rank folds four claims on urgency into that number, and each of them alone is
+enough to bring an item into a range: its own priority cookie, its parent's,
+an approaching deadline, and a schedule that has come due.
+
+Two consequences are worth stating plainly.
+
 A missing priority cookie counts as exactly ~agile-gtd-priority-default~ (=E=
-by default; see [[*Priorities][Priorities]]) — the same value the rank and sort
-code assigns it. The =backlog= range and every wider range therefore include
-every unprioritised item; =sprint= does not, since its cutoff sits above the
+by default; see [[*Priorities][Priorities]]).  The =backlog= range and every
+wider range therefore include every unprioritised item that has no other
+reason to rank lower; =sprint= does not, since its cutoff sits above the
 default.
+
+A cookie on the parent is such a reason.  A bare next action under a =[#G]=
+project is =G= work and leaves =backlog= at exactly the cutoff a =[#G]= cookie
+of its own would take it out at.  Inheritance decides where an item is
+grouped, so it must decide whether the item is admitted too.
 
 ** Which command opens at which range
 
@@ -387,6 +409,23 @@ Which range — =sprint=, =backlog=, =all=, or =someday= — each command's Next
 Actions and Backlog blocks open at, and how to rotate between them, is
 documented in [[*View Ranges][View Ranges]].
 
+** How a grouped block is ordered
+
+Next Actions and Backlog blocks are grouped by rank, top to bottom:
+
+| Group                | Holds |
+|----------------------+-------|
+| =Today & Overdue=    | Anything due or already past its date |
+| =[#A]= .. =[#I]=     | One heading per priority band, with =Default Priority= sitting where an item carrying no cookie ranks |
+| =Scheduled=          | Work waiting on a day later than today |
+| =Tickler=            | SOMEDAY items with a =SCHEDULED= date |
+| =Someday=            | The rest of the parked work |
+
+The priorities come first because they are the work actually on offer.
+Everything below them is on screen for a different reason — a date has not
+arrived yet, or the item was set aside — and the widest range is the only one
+that shows any of it.
+
 Interactive narrowing by tag is available in any agenda buffer via
 =org-agenda-filter-by-tag= (=\= key).
 
@@ -406,6 +445,7 @@ The package exposes org-ql predicates for the workflow's core concepts:
 | =agile-gtd-work=            | any work item |
 | =agile-gtd-private=         | non-work item |
 | =agile-gtd-blocked=         | task with an unsatisfied org-edna BLOCKER dependency |
+| =agile-gtd-within-range=    | item ranking at or above a given priority's band |
 
 These predicates drive agenda commands and review views.
 

@@ -59,9 +59,13 @@
                  (nil nil    8  30)
                  (nil nil   12  40)
                  (nil nil   14  40)
-                 (nil nil   21  50)
-                 (nil nil   30  60)
-                 (nil nil   90 1000))))
+                 ;; Past the default band a deadline stops moving the rank: an
+                 ;; entry with no cookie is default-priority work, and a date
+                 ;; further out than the default band reaches is no reason to
+                 ;; rank it below every priority there is.
+                 (nil nil   21  49)
+                 (nil nil   30  49)
+                 (nil nil   90  49))))
     (dolist (case cases)
       (cl-destructuring-bind (prio parent-prio dl-delta expected) case
         (ert-info ((format "prio=%S parent=%S dl-delta=%S" prio parent-prio dl-delta))
@@ -82,6 +86,8 @@
                  (nil nil  10   3  30)
                  ;; dl approaching + sc far future: dl wins
                  (nil nil   3  10  10)
+                 ;; dl far off + sc future: neither moves the default band
+                 (nil nil  90  10  49)
                  ;; sc overdue beats approaching deadline
                  (nil nil   5  -5  -5)
                  ;; priority A + sc today: sc (rank -1) beats A (rank 1)
