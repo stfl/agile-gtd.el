@@ -19,8 +19,14 @@
 (depends-on "org-ql" "0.8")
 (depends-on "org-super-agenda" "1.3")
 (depends-on "org-edna" "1.1.2")
+(depends-on "mcp-server-lib" "0.4.0")
+
+;; org-mcp is loaded from a local checkout until the release carrying
+;; `org-mcp-view-catalogue-function' is on MELPA.  mcp-server-lib above is
+;; its own dependency, which a load path does not install.
+(load-paths "../org-mcp")
 
 ;; Stale bytecode is loaded in preference to newer source, so a test run can
 ;; silently exercise the last compile rather than the working tree.  The sweep
 ;; leaves .eask alone: that is the dependencies' own bytecode, not ours.
-(script "test" "find . -maxdepth 2 -name '*.elc' -not -path './.eask/*' -delete && eask test ert test/agile-gtd-test.el test/agile-gtd-rank-test.el test/agile-gtd-org-ql-predicates-test.el test/agile-gtd-agenda-test.el test/agile-gtd-range-test.el test/agile-gtd-startup-test.el")
+(script "test" "find . -maxdepth 2 -name '*.elc' -not -path './.eask/*' -delete && eask test ert test/agile-gtd-test.el test/agile-gtd-rank-test.el test/agile-gtd-org-ql-predicates-test.el test/agile-gtd-agenda-test.el test/agile-gtd-range-test.el test/agile-gtd-startup-test.el test/agile-gtd-org-mcp-test.el")

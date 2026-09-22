@@ -2,7 +2,7 @@
 
 ;; Version: 0.4.0
 ;; URL: https://github.com/stfl/agile-gtd
-;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2"))
+;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2") (org-mcp "0.9.0"))
 ;; Keywords: outlines, calendar, tools
 
 ;;; Commentary:
@@ -20,6 +20,7 @@
 (require 'org-capture)
 (require 'org-element)
 (require 'org-id)
+(require 'org-mcp)
 (require 'org-ql)
 (require 'org-ql-search)
 (require 'org-super-agenda)
