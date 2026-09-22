@@ -183,13 +183,15 @@ range where its cutoff priority\='s group does."
        ;; The blocker itself has no BLOCKER property and must still appear
        (should (member "Blocking action" headings))))))
 
-(ert-deftest agile-gtd-agenda-query-backlog-excludes-blocked ()
-  "Backlog query excludes entries whose BLOCKER is unsatisfied."
+(ert-deftest agile-gtd-agenda-query-backlog-includes-blocked ()
+  "Backlog query keeps entries whose BLOCKER is unsatisfied.
+A backlog is what there is to plan, and a blocked step of a chain is part
+of that plan even while it cannot be started."
   (agile-gtd-agenda-test-with-data
    (let ((org-blocker-hook (list #'org-edna-blocker-function)))
      (let* ((query    (agile-gtd-agenda-query-backlog))
             (headings (agile-gtd-org-ql-test-headings buffer query)))
-       (should-not (member "Blocked action" headings))
+       (should (member "Blocked action" headings))
        (should (member "Blocking action" headings))))))
 
 (ert-deftest agile-gtd-agenda-actions-work-private-split ()
@@ -433,6 +435,13 @@ With the stock configuration those cutoffs are C for `sprint', E for
             "* PROJ Project due today\n"
             (format "DEADLINE: <%s>\n" today)
             "** NEXT Step of the project due today\n\n"
+            ;; Chains whose second step is blocked by the first: private and work.
+            "* NEXT [#B] Private chain first\n\n"
+            "* NEXT [#B] Private chain blocked\n"
+            ":PROPERTIES:\n:BLOCKER:  previous-sibling\n:END:\n\n"
+            "* NEXT [#B] Work chain first :#work:\n\n"
+            "* NEXT [#B] Work chain blocked :#work:\n"
+            ":PROPERTIES:\n:BLOCKER:  previous-sibling\n:END:\n\n"
             ;; Work item scheduled today: appears in day block in work views only.
             "* NEXT [#A] Work item today :#work:\n"
             (format "SCHEDULED: <%s>\n" today)
@@ -662,7 +671,25 @@ Uses relative dates so scheduled/deadline items are testable."
      (format "SCHEDULED: <%s>\n\n" today)
      "* NEXT [#A] Tickler future :SOMEDAY:\n"
      (format "SCHEDULED: <%s>\n\n" tomorrow)
-     "* NEXT [#A] Habit item :HABIT:\n\n")))
+     "* NEXT [#A] Habit item :HABIT:\n\n"
+     ;; Open in a state `next' does not take, but dated today.
+     "* TODO Plain todo scheduled today\n"
+     (format "SCHEDULED: <%s>\n\n" today)
+     "* PROJ Project due today\n"
+     (format "DEADLINE: <%s>\n" today)
+     "** NEXT Step of project due today\n\n"
+     ;; A chain: the second step is blocked by the first, the third by the
+     ;; second.  Only the second is due.
+     "* NEXT [#A] Chain first step\n\n"
+     "* NEXT Blocked due today\n"
+     (format "DEADLINE: <%s>\n" today)
+     ":PROPERTIES:\n:BLOCKER:  previous-sibling\n:END:\n\n"
+     "* NEXT [#A] Blocked not due\n"
+     ":PROPERTIES:\n:BLOCKER:  previous-sibling\n:END:\n\n")))
+
+(defconst agile-gtd-agenda-test-due-today-additions
+  '("Plain todo scheduled today" "Project due today" "Blocked due today")
+  "Entries `next' admits only through the any-open-state-due-today half.")
 
 (defmacro agile-gtd-agenda-test-hide-today-data-do (&rest body)
   "Run BODY with hide-today test fixtures in a temporary Org buffer."
@@ -693,6 +720,58 @@ Uses relative dates so scheduled/deadline items are testable."
       (should (member "Deadline today" headings))
       (should (member "Scheduled yesterday (overdue)" headings))
       (should (member "Deadline yesterday (overdue)" headings)))))
+
+(ert-deftest agile-gtd-next-actions-admit-any-open-task-due-today ()
+  "Without hide-today, `next' adds every open task inside `today'.
+A plain TODO, a project and a blocked action due today all come along at
+every range, while a blocked action that is not due stays out."
+  (agile-gtd-agenda-test-hide-today-data-do
+    (let ((org-blocker-hook (list #'org-edna-blocker-function)))
+      (dolist (range agile-gtd-view-ranges)
+        (ert-info ((format "range=%s" range))
+          (let ((headings (agile-gtd-org-ql-test-headings
+                           buffer (agile-gtd-agenda-query-next-actions nil range))))
+            (dolist (title agile-gtd-agenda-test-due-today-additions)
+              (ert-info (title)
+                (should (member title headings))))
+            (should-not (member "Blocked not due" headings))
+            (ert-info ("A project's date does not bring its step into `sprint'")
+              (when (memq range '(today sprint))
+                (should-not (member "Step of project due today" headings))))))))))
+
+(ert-deftest agile-gtd-next-actions-today-holds-only-what-is-due ()
+  "`next' at `today' holds what is scheduled, due or overdue, and no more."
+  (agile-gtd-agenda-test-hide-today-data-do
+    (let ((org-blocker-hook (list #'org-edna-blocker-function)))
+      (let ((headings (agile-gtd-org-ql-test-headings
+                       buffer (agile-gtd-agenda-query-next-actions nil 'today))))
+        (should (member "Scheduled today" headings))
+        (should (member "Deadline yesterday (overdue)" headings))
+        (should-not (member "Plain next action" headings))
+        (should-not (member "Chain first step" headings))
+        (should-not (member "Scheduled tomorrow (future)" headings))))))
+
+(ert-deftest agile-gtd-next-actions-hide-today-leaves-out-today-at-every-range ()
+  "With hide-today, nothing scheduled, due or overdue appears at any range.
+That covers both halves of the query: the unblocked actions and the open
+tasks of any state that only `today' admits.  At `today' itself the
+result is therefore empty."
+  (agile-gtd-agenda-test-hide-today-data-do
+    (let ((org-blocker-hook (list #'org-edna-blocker-function)))
+      (dolist (range agile-gtd-view-ranges)
+        (ert-info ((format "range=%s" range))
+          (let ((headings (agile-gtd-org-ql-test-headings
+                           buffer (agile-gtd-agenda-query-next-actions nil range t))))
+            (dolist (title (append agile-gtd-agenda-test-due-today-additions
+                                   '("Scheduled today" "Deadline today"
+                                     "Scheduled yesterday (overdue)"
+                                     "Deadline yesterday (overdue)"
+                                     "Tickler today")))
+              (ert-info (title)
+                (should-not (member title headings))))
+            (if (eq range 'today)
+                (should-not headings)
+              (should (member "Plain next action" headings)))))))))
 
 (ert-deftest agile-gtd-next-actions-default-excludes-future-scheduled ()
   "hide-today nil (default): future-scheduled items are excluded."
@@ -1012,6 +1091,22 @@ the day block above already carries, so the block below it holds nothing."
                                         "Work item today"
                                       "Scheduled today")
                                     day))))))))
+
+(ert-deftest agile-gtd-agenda-backlogs-list-blocked-items ()
+  "The private and work backlogs list a blocked step; the agendas do not."
+  (dolist (case '(("pb" "Private chain blocked" "a")
+                  ("wb" "Work chain blocked" "ww")))
+    (pcase-let ((`(,backlog ,title ,agenda) case))
+      (ert-info ((format "%s lists %s" backlog title))
+        (agile-gtd-agenda-test-build-view-with
+            ((org-blocker-hook (list #'org-edna-blocker-function)))
+            backlog
+          (should (string-match-p title agenda-text))))
+      (ert-info ((format "%s leaves out %s" agenda title))
+        (agile-gtd-agenda-test-build-view-with
+            ((org-blocker-hook (list #'org-edna-blocker-function)))
+            agenda
+          (should-not (string-match-p title (agile-gtd-agenda-test-rotate-to 'all))))))))
 
 (ert-deftest agile-gtd-agenda-backlog-at-today-lists-only-what-is-due-today ()
   "A backlog rotated to `today' holds the projects and actions due today.

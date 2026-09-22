@@ -792,20 +792,30 @@ TAG-FILTER-PRESET, when non-nil, is a list of strings like
 
 (defun agile-gtd-agenda-query-next-actions (&optional tag-filter range hide-today)
   "Return org-ql sexp for next actions inside RANGE.
+Next actions are the unblocked NEXT and WAIT entries, and every open
+task of any state inside the `today' range, blocked or not: work due
+today is shown even when its blocker is unresolved.
+
 TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag.
 RANGE is one of `agile-gtd-view-ranges' and defaults to `sprint'.  The
 default is pinned rather than read from whatever range an agenda buffer
-happens to be showing, so a caller outside the agenda — the org-mcp
-server passes TAG-FILTER and nothing else — always gets one query.
+happens to be showing, so a caller outside the agenda always gets one
+query.
 HIDE-TODAY, when non-nil, excludes items the day block already carries,
-so the two sections do not name the same task twice.  When nil, items
+so the two sections do not name the same task twice: everything
+scheduled, due today or overdue, and the any-state addition as a whole,
+which exists only for callers without a day block.  When nil, items
 scheduled or due today or overdue are included."
   (let* ((range (or range 'sprint))
          (parked (agile-gtd-view-range-parked-p range))
-         (base `(and (todo ,@(agile-gtd--action-keywords))
+         (actionable `(and (todo ,@(agile-gtd--action-keywords))
+                           (not (agile-gtd-blocked))))
+         (base `(and ,(if hide-today
+                          actionable
+                        `(or ,actionable
+                             (and (todo) (agile-gtd-within-range today))))
                      (agile-gtd-within-range ,range)
                      ,@(unless parked '((not (agile-gtd-someday))))
-                     (not (agile-gtd-blocked))
                      ,@(cond
                         ;; A parked range exists to show ticklers, and a
                         ;; tickler is a future schedule.  Gating on `:to 0'
@@ -828,7 +838,9 @@ scheduled or due today or overdue are included."
 
 (defun agile-gtd-agenda-query-backlog (&optional tag-filter range)
   "Return org-ql sexp for the backlog inside RANGE.
-The backlog holds projects and standalone next actions.
+The backlog holds projects and standalone next actions, blocked ones
+included: it is what there is to plan, and a blocked step of a chain is
+part of that plan before it can be started.
 TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag.
 RANGE is one of `agile-gtd-view-ranges' and defaults to `all', which
 cuts off at `agile-gtd-priority-lowest' and so admits every priority.
@@ -846,7 +858,6 @@ show what has been set aside — brings it back."
                          (agile-gtd-standalone-next))
                      (agile-gtd-within-range ,range)
                      (not (agile-gtd-habit))
-                     (not (agile-gtd-blocked))
                      ,@(unless parked
                          '((not (agile-gtd-someday))
                            (not (agile-gtd-tickler))
