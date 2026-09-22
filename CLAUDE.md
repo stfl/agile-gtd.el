@@ -46,13 +46,13 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion t
 **View ranges** (`agile-gtd-view-ranges`: today -> sprint -> backlog -> all -> someday)
 - `agile-gtd-view-range-cutoff` is each range's rank cutoff: 0 for `today`, the cutoff priority's `agile-gtd--rank-band-top` for the rest. `today` has no priority (`agile-gtd-view-range-priority` returns nil for it)
 - `agile-gtd-within-range` is the org-ql predicate every ranged query filters on; it takes a range name (quoted by its normalizer) or a priority character, and tests `agile-gtd--item-rank` against the cutoff
-- `today` holds rank ≤ 0, which includes deadlines within the two-day `[#A]` window, not only calendar-today; it lines up with the "Today & Overdue" rank group
+- `today` holds rank ≤ 0, which includes deadlines within the two-day `[#A]` window, not only calendar-today; it lines up with the "Today & Overdue" rank group. The day block's `org-deadline-warning-days` is that same window, so an item `hide-today` removes is always in the day block
 - No agenda command declares `today`; reset returns to the declared range. Ranged blocks use `agile-gtd-agenda-ql-block`, which keeps the header when the result is empty (`org-ql-block` drops the whole block)
 - Grouping and filtering must stay derived from rank. Re-deriving a cutoff from cookies, parents or deadlines separately is what produced headings for priorities a range had excluded
 - Work scheduled beyond today is excluded from every range but `someday`
 
 **Agenda queries** (org-ql based)
-- `agile-gtd-agenda-query-next-actions` — unblocked NEXT/WAIT, or any open task inside `today` regardless of blocking, cut at the range. `hide-today` (passed by the agenda blocks under the day block) removes everything scheduled, due or overdue and drops the any-state addition entirely
+- `agile-gtd-agenda-query-next-actions` — unblocked NEXT/WAIT, or any open task inside `today` regardless of blocking, cut at the range. `hide-today` (passed by the agenda blocks under the day block) removes everything inside `today` by rank, from both halves, at every range, so the `[today]` block is always empty
 - `agile-gtd-agenda-query-backlog` — PROJ and standalone NEXT/WAIT, blocked included
 - `agile-gtd-agenda-query-inbox` — unprocessed inbox items
 - `agile-gtd-agenda-query-stuck-projects` — projects with no NEXT action

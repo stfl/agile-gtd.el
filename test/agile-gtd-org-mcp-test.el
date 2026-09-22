@@ -30,9 +30,14 @@
 
 (defun agile-gtd-org-mcp-test-todo ()
   "Return the fixture for the todo file: private, work, inbox and leftovers."
-  (let ((today (format-time-string "%Y-%m-%d %a")))
+  (let ((today (format-time-string "%Y-%m-%d %a"))
+        (tomorrow (format-time-string
+                   "%Y-%m-%d %a" (time-add (current-time) (days-to-time 1)))))
     (concat
      "* NEXT [#A] Private sprint action\n\n"
+     ;; Inside the [#A] deadline window, so inside `today' by rank.
+     "* NEXT [#A] Private due tomorrow\n"
+     (format "DEADLINE: <%s>\n\n" tomorrow)
      "* NEXT Private default action\n\n"
      "* NEXT [#G] Private low action\n\n"
      "* TODO Private todo scheduled today\n"
@@ -144,6 +149,7 @@ FILTER and RANGE are passed as a client would pass them."
       (should (equal (sort (copy-sequence titles) #'string<)
                      (sort (list "Private todo scheduled today"
                                  "Private blocked due today"
+                                 "Private due tomorrow"
                                  "Private sprint action"
                                  "Private chain first"
                                  "Beta urgent action"
@@ -153,10 +159,12 @@ FILTER and RANGE are passed as a client would pass them."
                            #'string<))))))
 
 (ert-deftest agile-gtd-org-mcp-next-today-holds-any-open-state-blocked-or-not ()
-  "`next-today' holds what is due today, a plain TODO and a blocked action alike."
+  "`next-today' holds what is due today, a plain TODO and a blocked action alike.
+An [#A] deadline one day out is inside `today' too."
   (agile-gtd-org-mcp-test-with-fixtures
     (should (equal (sort (agile-gtd-org-mcp-test-titles "next-today") #'string<)
-                   '("Private blocked due today" "Private todo scheduled today")))))
+                   '("Private blocked due today" "Private due tomorrow"
+                     "Private todo scheduled today")))))
 
 (ert-deftest agile-gtd-org-mcp-next-leaves-out-blocked-work-that-is-not-due ()
   "A blocked action is offered by `next' only when it is due."
@@ -294,7 +302,8 @@ FILTER and RANGE are passed as a client would pass them."
           (should (apply #'<= ranks)))))
     (ert-info ("what is due today leads")
       (should (member (car (agile-gtd-org-mcp-test-titles "next"))
-                      '("Private todo scheduled today" "Private blocked due today"))))))
+                      '("Private todo scheduled today" "Private blocked due today"
+                        "Private due tomorrow"))))))
 
 (ert-deftest agile-gtd-org-mcp-nodes-carry-rank-parent-priority-and-blocked ()
   "Each node carries `rank', `parent-priority' and `blocked'."

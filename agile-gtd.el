@@ -793,7 +793,11 @@ TAG-FILTER-PRESET, when non-nil, is a list of strings like
 \\='(\"+#work\") or \\='(\"-#work\") used to restrict which entries appear."
   `(agenda "Agenda" ;; FIXME rename to Today
     ((org-agenda-use-time-grid t)
-     (org-deadline-warning-days 0)
+     ;; An action due within the highest priority's deadline window ranks
+     ;; inside `today', which the next-actions blocks leave to this block;
+     ;; the warning is where it shows instead.
+     (org-deadline-warning-days
+      ,(agile-gtd--deadline-window agile-gtd-priority-highest))
      (org-agenda-span '1)
      (org-super-agenda-groups ',(agile-gtd--today-groups))
      (org-agenda-start-day (org-today))
@@ -813,31 +817,29 @@ RANGE is one of `agile-gtd-view-ranges' and defaults to `sprint'.  The
 default is pinned rather than read from whatever range an agenda buffer
 happens to be showing, so a caller outside the agenda always gets one
 query.
-HIDE-TODAY, when non-nil, excludes items the day block already carries,
-so the two sections do not name the same task twice: everything
-scheduled, due today or overdue, and the any-state addition as a whole,
-which exists only for callers without a day block.  When nil, items
-scheduled or due today or overdue are included."
+HIDE-TODAY, when non-nil, excludes everything inside the `today' range,
+which the day block above an agenda\\='s next-actions block carries, so the
+two sections do not name the same task twice.  The test is the rank, the
+same one `today' is cut at, so it takes out both halves of the query:
+what is scheduled, due today or overdue, and an action due within the
+deadline window of `agile-gtd-priority-highest', which the day block
+shows as a deadline warning.  When nil, all of these are included."
   (let* ((range (or range 'sprint))
          (parked (agile-gtd-view-range-parked-p range))
-         (actionable `(and (todo ,@(agile-gtd--action-keywords))
-                           (not (agile-gtd-blocked))))
-         (base `(and ,(if hide-today
-                          actionable
-                        `(or ,actionable
-                             (and (todo) (agile-gtd-within-range today))))
+         (base `(and (or (and (todo ,@(agile-gtd--action-keywords))
+                              (not (agile-gtd-blocked)))
+                         (and (todo) (agile-gtd-within-range today)))
                      (agile-gtd-within-range ,range)
                      ,@(unless parked '((not (agile-gtd-someday))))
                      ,@(cond
                         ;; A parked range exists to show ticklers, and a
-                        ;; tickler is a future schedule.  Gating on `:to 0'
-                        ;; rather than on any schedule keeps it, while today
-                        ;; and overdue items stay out of the day block's way.
+                        ;; tickler is a future schedule, which the rank
+                        ;; test lets through while it keeps today's work
+                        ;; out of the day block's way.
                         ((and hide-today parked)
-                         '((not (deadline :to 0))
-                           (not (scheduled :to 0))))
+                         '((not (agile-gtd-within-range today))))
                         (hide-today
-                         '((not (deadline :to 0))
+                         '((not (agile-gtd-within-range today))
                            (not (scheduled))))
                         (parked nil)
                         (t '((not (scheduled :from +1))))))))
@@ -1560,8 +1562,10 @@ with no area and no range"))
 (defun agile-gtd--org-mcp-range-description (range)
   "Return what RANGE admits, for the catalogue."
   (pcase range
-    ('today "rank 0 or below: scheduled or due today, overdue, or due within \
-the two-day deadline window of the highest priority")
+    ('today (format "rank 0 or below: due within the [#%c] deadline window \
+(%d days), today, or overdue, or scheduled today or earlier"
+                    agile-gtd-priority-highest
+                    (agile-gtd--deadline-window agile-gtd-priority-highest)))
     ('someday (format "every priority, and the only range that brings back \
 %s items, ticklers and work scheduled after today"
                       agile-gtd-someday-tag))

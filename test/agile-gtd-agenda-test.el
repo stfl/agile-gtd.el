@@ -442,6 +442,10 @@ With the stock configuration those cutoffs are C for `sprint', E for
             ;; (excluded by `not (scheduled)').  No work tag → private only.
             "* NEXT [#B] Scheduled today\n"
             (format "SCHEDULED: <%s>\n" today)
+            ;; Due tomorrow at [#A]: inside `today' by rank, and so a deadline
+            ;; warning in the day block rather than a next action.
+            "* NEXT [#A] Due tomorrow item\n"
+            (format "DEADLINE: <%s>\n\n" tomorrow)
             ;; A project due today.  Its step carries no date, so only the
             ;; project itself is inside `today'.
             "* PROJ Project due today\n"
@@ -678,6 +682,9 @@ Uses relative dates so scheduled/deadline items are testable."
      (format "DEADLINE: <%s>\n\n" yesterday)
      "* NEXT [#A] Scheduled tomorrow (future)\n"
      (format "SCHEDULED: <%s>\n\n" tomorrow)
+     ;; Inside the [#A] deadline window, so inside `today' by rank.
+     "* NEXT [#A] Deadline tomorrow\n"
+     (format "DEADLINE: <%s>\n\n" tomorrow)
      "* NEXT [#A] Someday item :SOMEDAY:\n\n"
      "* NEXT [#A] Tickler today :SOMEDAY:\n"
      (format "SCHEDULED: <%s>\n\n" today)
@@ -759,15 +766,18 @@ every range, while a blocked action that is not due stays out."
                        buffer (agile-gtd-agenda-query-next-actions nil 'today))))
         (should (member "Scheduled today" headings))
         (should (member "Deadline yesterday (overdue)" headings))
+        (should (member "Deadline tomorrow" headings))
         (should-not (member "Plain next action" headings))
         (should-not (member "Chain first step" headings))
         (should-not (member "Scheduled tomorrow (future)" headings))))))
 
 (ert-deftest agile-gtd-next-actions-hide-today-leaves-out-today-at-every-range ()
-  "With hide-today, nothing scheduled, due or overdue appears at any range.
-That covers both halves of the query: the unblocked actions and the open
-tasks of any state that only `today' admits.  At `today' itself the
-result is therefore empty."
+  "With hide-today, nothing inside `today' appears at any range.
+Hiding is by rank, so it takes out what is scheduled, due or overdue and
+what falls due within the [#A] deadline window alike.  That covers both
+halves of the query: the unblocked actions and the open tasks of any
+state that only `today' admits.  At `today' itself the result is
+therefore empty."
   (agile-gtd-agenda-test-hide-today-data-do
     (let ((org-blocker-hook (list #'org-edna-blocker-function)))
       (dolist (range agile-gtd-view-ranges)
@@ -776,6 +786,7 @@ result is therefore empty."
                            buffer (agile-gtd-agenda-query-next-actions nil range t))))
             (dolist (title (append agile-gtd-agenda-test-due-today-additions
                                    '("Scheduled today" "Deadline today"
+                                     "Deadline tomorrow"
                                      "Scheduled yesterday (overdue)"
                                      "Deadline yesterday (overdue)"
                                      "Tickler today")))
@@ -1103,6 +1114,22 @@ the day block above already carries, so the block below it holds nothing."
                                         "Work item today"
                                       "Scheduled today")
                                     day))))))))
+
+(ert-deftest agile-gtd-agenda-a-deadline-in-the-top-window-is-a-day-block-warning ()
+  "An [#A] deadline one day out is in the day block and never in Next Actions.
+It ranks inside `today', and the next-actions block under the day block
+leaves out everything inside `today', at every range."
+  (agile-gtd-agenda-test-build-view "a"
+    (dolist (range '(sprint today))
+      (ert-info ((format "range=%s" range))
+        (let* ((text (agile-gtd-agenda-test-rotate-to range))
+               (day (agile-gtd-agenda-test-block-section text "Day-agenda"))
+               (next (agile-gtd-agenda-test-block-section
+                      text (format "Next Actions [%s]" range))))
+          (should day)
+          (should next)
+          (should (string-match-p "Due tomorrow item" day))
+          (should-not (string-match-p "Due tomorrow item" next)))))))
 
 (ert-deftest agile-gtd-agenda-backlogs-list-blocked-items ()
   "The private and work backlogs list a blocked step; the agendas do not."
