@@ -147,13 +147,13 @@ all -> someday=. Each range's cutoff is a rank. =today= closes at rank 0; every
 other range closes at the band of an existing priority defcustom, never at a
 hard-coded letter:
 
-| Range     | Cutoff                            | Shows                                                                                                  |
-|-----------+-----------------------------------+--------------------------------------------------------------------------------------------------------|
-| =today=   | rank 0                            | Items due within the =[#A]= deadline window (two days), today, or overdue, and items scheduled today or earlier. |
-| =sprint=  | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                                         |
-| =backlog= | ~agile-gtd-priority-default~      | The above, plus everything down to the default priority, including every item with no priority cookie. |
-| =all=     | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded.                |
-| =someday= | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                                      |
+| Range     | Cutoff                            | Shows                                                                                                                    |
+|-----------+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------|
+| =today=   | rank 0                            | Items with any deadline within two days (the =[#A]= deadline window), due today, overdue, or scheduled today or earlier. |
+| =sprint=  | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                                                           |
+| =backlog= | ~agile-gtd-priority-default~      | The above, plus everything down to the default priority, including every item with no priority cookie.                   |
+| =all=     | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded.                                  |
+| =someday= | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                                                        |
 
 *** What a cutoff actually tests
 
@@ -414,22 +414,25 @@ The package installs a set of agenda commands under =org-agenda-custom-commands=
 | =w<key>= | /Project/ Agenda        | Per-project daily view (auto-generated)          |
 
 The composite daily views (=a=, =pp=, =ww=, =w<key>=) show three blocks in order:
-1. Agenda (today's scheduled, deadlined, and time-grid items, and warnings for deadlines within the =[#A]= window)
+1. Agenda (today's scheduled, deadlined, and time-grid items, and warnings for any deadline within two days)
 2. Stuck Projects (flat list, no grouping)
 3. Next Actions (grouped by ancestor priority)
 
 All three blocks are filtered consistently: =pp= excludes =#work= items, =ww=
 includes only =#work= items, and =w<key>= includes only items tagged with the
-project tag. =a= shows everything unfiltered. The Next Actions block leaves
-out everything inside the =today= range — due within the =[#A]= deadline
-window, today, or overdue, or scheduled today or earlier — and the day block
-lists all of it, showing a deadline within the =[#A]= window as a warning. No
-task is listed twice, and none falls between the two.
+project tag. =a= shows everything unfiltered. The Next Actions block leaves out
+everything inside the =today= range — any deadline within two days (the =[#A]=
+deadline window), due today, overdue, or scheduled today or earlier — and the
+day block lists all of it, showing a deadline within those two days as a
+warning. With Org's default warning periods no task is listed twice and none
+falls between the two. A deadline carrying its own warning period, such as
+=<2026-10-01 Thu -5d>=, is the exception: the day block warns of it from five
+days out while its rank keeps it in Next Actions until the last two.
 
 The backlogs (=pb=, =wb=) list projects and standalone =NEXT= / =WAIT= items,
 blocked ones included and dimmed: a backlog is what there is to plan.
 
-Which range — =sprint=, =backlog=, =all=, or =someday= — each command's Next
+Which range — =today=, =sprint=, =backlog=, =all=, or =someday= — each command's Next
 Actions and Backlog blocks open at, and how to rotate between them, is
 documented in [[*View Ranges][View Ranges]].
 
