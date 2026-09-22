@@ -24,12 +24,12 @@ eask exec emacs -batch -Q -L . \
 
 ## Architecture
 
-This is a single-file Emacs Lisp package (`agile-gtd.el`) with five companion test files under `test/`.
+This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion test files under `test/`. It depends on org-mcp, which Eask loads from the local checkout at `../org-mcp` (with `mcp-server-lib` from MELPA) until the release carrying `org-mcp-view-catalogue-function` is on MELPA.
 
 ### Main entry points
 
 - `agile-gtd-enable` — call once after customising variables; delegates to `agile-gtd-refresh`
-- `agile-gtd-refresh` — validates config, then applies all derived settings (priorities, keywords, tags, agenda files, refile targets, capture templates, agenda commands)
+- `agile-gtd-refresh` — validates config, then applies all derived settings (priorities, keywords, tags, agenda files, refile targets, capture templates, agenda commands, org-mcp views)
 
 ### Key subsystems
 
@@ -43,17 +43,30 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with five companion te
 - Sequence: `TODO → NEXT → WAIT → PROJ → EPIC | DONE, IDEA, KILL`
 - Public accessors: `agile-gtd-project-keyword`, `agile-gtd-action-keywords`
 
-**View ranges** (`agile-gtd-view-ranges`: sprint -> backlog -> all -> someday)
-- `agile-gtd-within-range` is the org-ql predicate every ranged query filters on; it tests `agile-gtd--item-rank` against the cutoff's `agile-gtd--rank-band-top`
+**View ranges** (`agile-gtd-view-ranges`: today -> sprint -> backlog -> all -> someday)
+- `agile-gtd-view-range-cutoff` is each range's rank cutoff: 0 for `today`, the cutoff priority's `agile-gtd--rank-band-top` for the rest. `today` has no priority (`agile-gtd-view-range-priority` returns nil for it)
+- `agile-gtd-within-range` is the org-ql predicate every ranged query filters on; it takes a range name (quoted by its normalizer) or a priority character, and tests `agile-gtd--item-rank` against the cutoff
+- `today` holds rank ≤ 0, which includes deadlines within the two-day `[#A]` window, not only calendar-today; it lines up with the "Today & Overdue" rank group
+- No agenda command declares `today`; reset returns to the declared range. Ranged blocks use `agile-gtd-agenda-ql-block`, which keeps the header when the result is empty (`org-ql-block` drops the whole block)
 - Grouping and filtering must stay derived from rank. Re-deriving a cutoff from cookies, parents or deadlines separately is what produced headings for priorities a range had excluded
 - Work scheduled beyond today is excluded from every range but `someday`
 
 **Agenda queries** (org-ql based)
-- `agile-gtd-agenda-query-next-actions` — sprint / next-actions view
-- `agile-gtd-agenda-query-backlog` — backlog with priority grouping
+- `agile-gtd-agenda-query-next-actions` — unblocked NEXT/WAIT, or any open task inside `today` regardless of blocking, cut at the range. `hide-today` (passed by the agenda blocks under the day block) removes everything scheduled, due or overdue and drops the any-state addition entirely
+- `agile-gtd-agenda-query-backlog` — PROJ and standalone NEXT/WAIT, blocked included
 - `agile-gtd-agenda-query-inbox` — unprocessed inbox items
 - `agile-gtd-agenda-query-stuck-projects` — projects with no NEXT action
 - Project-specific agenda commands generated from `agile-gtd-projects`
+
+**Area table** (`agile-gtd-areas`)
+- One row per area: everything (`:name` nil), `private`, `work`, and one per `agile-gtd-project-records` entry, keyed or not. Each carries `:filter`, `:next-range`, `:day-filter` and `:command` (nil for a project without a character `:key`)
+- `agile-gtd--area-agenda-command` builds `a`, `pp`, `ww` and `w<key>` from it; the org-mcp views are built from the same rows. A change to what an area filters or defaults to goes in the table, never in one consumer
+
+**org-mcp views** (`agile-gtd--apply-org-mcp`, behind `agile-gtd-enable-org-mcp`)
+- `agile-gtd-org-mcp-views` generates keys `[<area>-]<view>[-<range>]`: 13 per area plus `inbox` and `tangling`. Each carries a literal `:query` and no `:filter`/`:range`, so org-mcp refuses parameters
+- The apply step merges views and the `rank`/`parent-priority`/`blocked` computed fields by name (dropping keys recorded in `agile-gtd--org-mcp-view-names` from the previous refresh), sets `org-mcp-query-sort-fn`, `org-mcp-view-catalogue-function`, `org-mcp-allowed-files` (nil) and `org-mcp-file-scope-override` (t). It never starts the MCP server
+- `blocked` answers `:json-false` rather than nil, because org-mcp drops nil computed fields
+- `agile-gtd-org-mcp-view-catalogue` writes the `org-view` description from the area table and range list; keep its words in step with the queries
 
 **Rank / sort key** (`agile-gtd--item-rank`, `agile-gtd--item-rank<`)
 - Composite score from item priority, parent-project priority, deadline proximity, and scheduled date
@@ -74,7 +87,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with five companion te
 
 ### Documentation
 
-When making any code changes, update `README.org` to reflect them.
+When making any code changes, update `README.org` to reflect them. `README.org` is the human-facing page: it never links into this file.
 
 ### Test conventions
 
@@ -88,5 +101,6 @@ Tests live in `test/` and are split by concern:
 | `agile-gtd-agenda-test.el` | agenda query helpers |
 | `agile-gtd-range-test.el` | view-range cutoffs, the rank/grouping contract, and the Scheduled group |
 | `agile-gtd-startup-test.el` | the project registry, its normalisation and skip-and-warn, and the project-tag startup check |
+| `agile-gtd-org-mcp-test.el` | the org-mcp view keys, called through `org-mcp--tool-view` over fixture files; computed fields, refusals, the apply step and its flag |
 
-The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd variables to clean defaults and using a temporary `org-directory`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.
+The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd/org-mcp variables to clean defaults and using a temporary `org-directory`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.

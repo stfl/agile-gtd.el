@@ -142,24 +142,28 @@ priority, and optionally adding a deadline.
 * View Ranges
 
 Agenda commands filter their Next Actions and Backlog blocks through one of
-four named ranges, ordered narrowest to widest: =sprint -> backlog -> all ->
-someday=. Each range's cutoff derives from an existing priority defcustom,
-never from a hard-coded letter:
+five named ranges, ordered narrowest to widest: =today -> sprint -> backlog ->
+all -> someday=. Each range's cutoff is a rank. =today= closes at rank 0; every
+other range closes at the band of an existing priority defcustom, never at a
+hard-coded letter:
 
-| Range     | Cutoff                            | Shows                                                                                  |
-|-----------+-----------------------------------+----------------------------------------------------------------------------------------|
-| =sprint=  | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                         |
+| Range     | Cutoff                            | Shows                                                                                                  |
+|-----------+-----------------------------------+--------------------------------------------------------------------------------------------------------|
+| =today=   | rank 0                            | Items scheduled or due today, overdue, or due within the two-day deadline window of =[#A]=.            |
+| =sprint=  | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                                         |
 | =backlog= | ~agile-gtd-priority-default~      | The above, plus everything down to the default priority, including every item with no priority cookie. |
-| =all=     | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded. |
-| =someday= | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                      |
+| =all=     | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded.                |
+| =someday= | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                                      |
 
 *** What a cutoff actually tests
 
 A range admits an item when its /rank/ — the one number
 ~agile-gtd--item-rank~ computes, and the same one the priority groups are
-built from — is at or above the cutoff priority's band.  Filtering and
-grouping read the same boundary, so a range can never show a heading for a
-priority it stops short of.
+built from — is at or below the range's cutoff: rank 0 for =today=, the
+cutoff priority's band for the others.  Filtering and grouping read the same
+boundary, so a range can never show a heading for a priority it stops short
+of.  Everything =today= admits lands in the =Today & Overdue= group, which
+closes at the same rank 0.
 
 Rank folds four claims on urgency into that number, and each of them alone is
 enough to bring an item into a range: its own priority cookie, its parent's,
@@ -206,10 +210,10 @@ untouched by range rotation.
 
 Inside an open agenda buffer, four interactive commands work the range list:
 
-- ~agile-gtd-agenda-set-range~ picks one of the four names directly via
+- ~agile-gtd-agenda-set-range~ picks one of the five names directly via
   completing-read.
 - ~agile-gtd-agenda-wider-range~ steps one range toward =someday=.
-- ~agile-gtd-agenda-narrower-range~ steps one range toward =sprint=.
+- ~agile-gtd-agenda-narrower-range~ steps one range toward =today=.
 - ~agile-gtd-agenda-current-range~ returns the buffer's current range, or nil
   outside an agenda.
 
@@ -222,7 +226,14 @@ nothing to do or whether the range is simply narrow.
 
 Rotation is buffer-local to the open agenda: widening one view never widens
 another, and closing the agenda discards the rotation entirely. Reopening a
-command always returns to its declared range.
+command always returns to its declared range, and so does resetting it; no
+command declares =today=, so it is only ever reached by rotating to it.
+
+An agenda rotated to =today= shows its Next Actions block under the header
+=Next Actions [today]=, and the block is empty unless an action falls due
+within the next two days: everything else inside =today= is scheduled, due or
+overdue, which is the work the day block above it already lists. A backlog
+rotated to =today= lists the projects and standalone actions inside =today=.
 
 Four further names are callable and work the same range list:
 
@@ -239,15 +250,21 @@ package installs none and leaves them to downstream configuration.
 ** Pinned ranges for the query functions
 
 ~agile-gtd-agenda-query-next-actions~ and ~agile-gtd-agenda-query-backlog~ are
-the public entry points other packages call directly — an Org MCP server, for
-instance, passing only a tag filter. Called without an explicit range, they
-resolve to a fixed range instead of reading any agenda's rotation state:
+the public entry points other packages call directly, passing a tag filter
+and a range. Called without an explicit range, they resolve to a fixed range
+instead of reading any agenda's rotation state:
 
 - ~agile-gtd-agenda-query-next-actions~ resolves to =sprint=.
 - ~agile-gtd-agenda-query-backlog~ resolves to =all=.
 
 This holds regardless of what an open agenda buffer is currently rotated to,
 so an external caller gets the same answer every time.
+
+The next-actions query returns the unblocked =NEXT= and =WAIT= items in the
+range, plus every open task of any state inside =today=, blocked or not. Its
+third argument, =hide-today=, is what the agenda's Next Actions blocks pass:
+it leaves out everything scheduled, due or overdue, that addition included,
+because the day block above already lists it.
 
 ** Breaking change: ~agile-gtd-max-priority-group~ is removed
 
@@ -403,7 +420,11 @@ The composite daily views (=a=, =pp=, =ww=, =w<key>=) show three blocks in order
 
 All three blocks are filtered consistently: =pp= excludes =#work= items, =ww=
 includes only =#work= items, and =w<key>= includes only items tagged with the
-project tag. =a= shows everything unfiltered.
+project tag. =a= shows everything unfiltered. The Next Actions block leaves
+out everything the day block above it shows, so no task is listed twice.
+
+The backlogs (=pb=, =wb=) list projects and standalone =NEXT= / =WAIT= items,
+blocked ones included and dimmed: a backlog is what there is to plan.
 
 Which range — =sprint=, =backlog=, =all=, or =someday= — each command's Next
 Actions and Backlog blocks open at, and how to rotate between them, is
@@ -429,23 +450,119 @@ that shows any of it.
 Interactive narrowing by tag is available in any agenda buffer via
 =org-agenda-filter-by-tag= (=\= key).
 
+* Views for AI assistants (org-mcp)
+
+=agile-gtd= depends on [[https://github.com/stfl/org-mcp][org-mcp]], which serves Org files to MCP clients such as
+AI assistants. Every =agile-gtd-refresh= turns the agenda's lists into org-mcp
+/view keys/, so an assistant asks for =private-next= and gets the Private
+Agenda's next actions, sorted by rank. The keys come from the same area table
+as the agenda commands, so a key and the agenda block it mirrors cannot drift
+apart.
+
+** Key grammar
+
+A key is =[<area>-]<view>[-<range>]=, and it is the whole question: a key
+takes no filter and no range parameter, and org-mcp refuses both, as it refuses
+an unknown key with the names that exist.
+
+- /area/: omitted for everything, =private=, =work=, or the tag of any project
+  in =agile-gtd-projects=, with or without a =:key=.
+- /view/: =next=, =backlog= or =stuck=. =inbox= and =tangling= exist once and
+  take neither area nor range.
+- /range/: =today=, =sprint=, =backlog=, =all= or =someday= (see [[*View Ranges][View Ranges]]),
+  optional on =next= and =backlog=. Without one, a key runs where the agenda
+  opens: =next= at =sprint= for everything and =private=, at =backlog= for
+  =work= and every project; =backlog= at =all=.
+
+Every area gets thirteen keys: =next= and =backlog= at each range and without
+one, and =stuck=. With three projects registered — say =alpha=, =beta= and
+=gamma= — that is six areas and 80 keys:
+
+| Key                   | Answers                                                        |
+|-----------------------+----------------------------------------------------------------|
+| =inbox=               | what has not been processed                                    |
+| =next=                | what to work on now: the sprint across every area              |
+| =next-today=          | everything inside =today=, in any open state, blocked or not   |
+| =private-next=        | the private next actions, at =sprint=                          |
+| =work-next=           | the work next actions, at =backlog=                            |
+| =alpha-next=          | one project's next actions, at =backlog=                       |
+| =alpha-next-today=    | what is due today in one project                               |
+| =work-backlog=        | the work backlog at every priority, blocked items included     |
+| =beta-backlog-sprint= | the high-priority part of one project's backlog                |
+| =backlog-someday=     | the whole backlog with SOMEDAY items, ticklers and future work |
+| =work-stuck=          | work projects without a next action, for the weekly review     |
+| =tangling=            | open leftovers under finished parents                          |
+
+** What each view holds
+
+- =next=: unblocked =NEXT= / =WAIT= items in the range, plus every open task of
+  any state that is inside =today=, blocked or not, so a plain =TODO= or a
+  project due today is never out of an assistant's sight. The agenda's Next
+  Actions blocks leave that addition to the day block.
+- =backlog=: projects and standalone =NEXT= / =WAIT= items in the range,
+  blocked ones included, habits left out. Outside =someday=, SOMEDAY items,
+  ticklers and work scheduled after today are left out.
+- =stuck=: projects with no =NEXT= / =WAIT= child, as in the Stuck Projects
+  block.
+- =inbox=: open items carrying one of =agile-gtd-inbox-tags=.
+- =tangling=: open items under a finished ancestor.
+
+Every result comes most urgent first, by rank, and each node carries three
+computed fields: =rank=, =parent-priority= (the parent's priority as a
+character code, 65 for =A=) and =blocked= (true or false, org-edna aware).
+
+** What agile-gtd sets in org-mcp
+
+On every refresh, unless =agile-gtd-enable-org-mcp= is nil:
+
+| Variable                          | Set to                                                  |
+|-----------------------------------+---------------------------------------------------------|
+| =org-mcp-views=                   | the keys, merged by name; views under other names stay  |
+| =org-mcp-computed-fields=         | =rank=, =parent-priority= and =blocked=, merged by name |
+| =org-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator            |
+| =org-mcp-view-catalogue-function= | the key grammar, in place of one line per key           |
+| =org-mcp-allowed-files=           | nil, so views run over =org-agenda-files=               |
+| =org-mcp-file-scope-override=     | t, so a call may name any Org file                      |
+
+A key belonging to a project that left the registry goes with it. With the
+flag off, agile-gtd leaves every org-mcp variable as it is.
+
+=agile-gtd= never starts the MCP server; that stays with your configuration,
+after =agile-gtd-enable=. org-mcp resolves a key on every call, so keys added
+by a refresh work at once. The key grammar in the =org-view= tool description
+is written when a client connects, and is rewritten once every client has
+disconnected and one connects again.
+
+#+begin_src emacs-lisp
+(setopt agile-gtd-projects '((:tag "alpha" :key ?a) (:tag "beta") (:tag "gamma")))
+(agile-gtd-enable)
+;; Start the server from your own configuration, e.g.:
+(mcp-server-lib-start)
+#+end_src
+
+To keep your own org-mcp configuration instead:
+
+#+begin_src emacs-lisp
+(setopt agile-gtd-enable-org-mcp nil)
+#+end_src
+
 * Derived concepts
 
 The package exposes org-ql predicates for the workflow's core concepts:
 
-| Predicate                   | Meaning |
-|-----------------------------+---------|
-| =agile-gtd-stuck-proj=      | project with no NEXT/WAIT child |
-| =agile-gtd-standalone-next= | NEXT/WAIT without a project ancestor |
-| =agile-gtd-tickler=         | deferred item with SOMEDAY + SCHEDULED |
-| =agile-gtd-tickler-proj=    | project wholly parked in the tickler |
-| =agile-gtd-someday=         | deferred item |
-| =agile-gtd-habit=           | habit by tag or Org habit style |
-| =agile-gtd-tangling=        | task left under a completed ancestor |
-| =agile-gtd-work=            | any work item |
-| =agile-gtd-private=         | non-work item |
-| =agile-gtd-blocked=         | task with an unsatisfied org-edna BLOCKER dependency |
-| =agile-gtd-within-range=    | item ranking at or above a given priority's band |
+| Predicate                   | Meaning                                                                                                                                        |
+|-----------------------------+------------------------------------------------------------------------------------------------------------------------------------------------|
+| =agile-gtd-stuck-proj=      | project with no NEXT/WAIT child                                                                                                                |
+| =agile-gtd-standalone-next= | NEXT/WAIT without a project ancestor                                                                                                           |
+| =agile-gtd-tickler=         | deferred item with SOMEDAY + SCHEDULED                                                                                                         |
+| =agile-gtd-tickler-proj=    | project wholly parked in the tickler                                                                                                           |
+| =agile-gtd-someday=         | deferred item                                                                                                                                  |
+| =agile-gtd-habit=           | habit by tag or Org habit style                                                                                                                |
+| =agile-gtd-tangling=        | task left under a completed ancestor                                                                                                           |
+| =agile-gtd-work=            | any work item                                                                                                                                  |
+| =agile-gtd-private=         | non-work item                                                                                                                                  |
+| =agile-gtd-blocked=         | task with an unsatisfied org-edna BLOCKER dependency                                                                                           |
+| =agile-gtd-within-range=    | item ranking inside a range, such as =(agile-gtd-within-range today)=, or at or above a priority's band, such as =(agile-gtd-within-range ?C)= |
 
 These predicates drive agenda commands and review views.
 
@@ -491,7 +608,9 @@ The common pattern is:
   automatically becomes =NEXT=.
 - =BLOCKER: previous-sibling= — this task stays blocked until the previous sibling is =DONE=.
 
-Blocked tasks are excluded from next-action, daily, and backlog views by =agile-gtd=.
+A blocked task stays out of the next actions until it is due: the =next= view
+keys list a blocked task scheduled or due today, and the agenda shows it in the
+day block. Backlogs list blocked tasks, dimmed in the agenda.
 
 The =agile-gtd-blocked= predicate (see [[*Derived concepts][Derived concepts]]) can be used
 in custom org-ql queries to match or exclude blocked items.
@@ -532,6 +651,8 @@ configuring:
 - agenda files and refile targets
 - org-ql predicates
 - agenda commands for inbox, today, review, stuck projects, and backlog views
+- org-mcp view keys, computed fields, sorting and file scope, unless
+  =agile-gtd-enable-org-mcp= is nil; see [[*Views for AI assistants (org-mcp)][Views for AI assistants (org-mcp)]]
 
 =agile-gtd-refresh= stops there. =agile-gtd-enable= also runs the startup tag
 check (see [[*Tag check at startup][Tag check at startup]]).
