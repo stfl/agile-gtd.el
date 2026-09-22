@@ -49,6 +49,10 @@
      "* NEXT Private blocked due today\n"
      (format "DEADLINE: <%s>\n" today)
      ":PROPERTIES:\n:BLOCKER:  previous-sibling\n:END:\n\n"
+     ;; A project due today: the project is inside `today', its step is not.
+     "* PROJ Private project due today\n"
+     (format "DEADLINE: <%s>\n" today)
+     "** NEXT Private step of the project due today\n\n"
      "* PROJ Private stuck project\n"
      "** TODO Private notes\n\n"
      "* NEXT [#A] Private someday :SOMEDAY:\n\n"
@@ -150,6 +154,7 @@ FILTER and RANGE are passed as a client would pass them."
                      (sort (list "Private todo scheduled today"
                                  "Private blocked due today"
                                  "Private due tomorrow"
+                                 "Private project due today"
                                  "Private sprint action"
                                  "Private chain first"
                                  "Beta urgent action"
@@ -164,7 +169,17 @@ An [#A] deadline one day out is inside `today' too."
   (agile-gtd-org-mcp-test-with-fixtures
     (should (equal (sort (agile-gtd-org-mcp-test-titles "next-today") #'string<)
                    '("Private blocked due today" "Private due tomorrow"
-                     "Private todo scheduled today")))))
+                     "Private project due today" "Private todo scheduled today")))))
+
+(ert-deftest agile-gtd-org-mcp-a-project-due-today-is-a-next-action ()
+  "A project due today is in `next-today' and in its area's `next'.
+Its undated step is not pulled along: it ranks where its own cookie puts it."
+  (agile-gtd-org-mcp-test-with-fixtures
+    (dolist (key '("next-today" "private-next"))
+      (ert-info (key)
+        (let ((titles (agile-gtd-org-mcp-test-titles key)))
+          (should (member "Private project due today" titles))
+          (should-not (member "Private step of the project due today" titles)))))))
 
 (ert-deftest agile-gtd-org-mcp-next-leaves-out-blocked-work-that-is-not-due ()
   "A blocked action is offered by `next' only when it is due."
@@ -271,22 +286,50 @@ An [#A] deadline one day out is inside `today' too."
                                 (agile-gtd-org-mcp-test-refusal
                                  (lambda () (agile-gtd-org-mcp-test-view key)))))))))
 
+(defun agile-gtd-org-mcp-test-area-keys (area)
+  "Return the thirteen keys the grammar gives AREA, a key prefix."
+  (mapcar (lambda (key) (concat area key))
+          (append '("next" "backlog" "stuck")
+                  (mapcan (lambda (view)
+                            (mapcar (lambda (range) (format "%s-%s" view range))
+                                    agile-gtd-view-ranges))
+                          '("next" "backlog")))))
+
+(defun agile-gtd-org-mcp-test-listed-keys ()
+  "Return the keys org-view names when it refuses an unknown one."
+  (let ((message (agile-gtd-org-mcp-test-refusal
+                  (lambda () (agile-gtd-org-mcp-test-view "no-such-key")))))
+    ;; The rendered error closes on a quote, which is not part of the last name.
+    (should (string-match "Configured views: \\([^\"]*\\)" message))
+    (split-string (match-string 1 message) ", " t)))
+
 (ert-deftest agile-gtd-org-mcp-key-count ()
-  "Thirteen keys per area, plus `inbox' and `tangling'."
+  "Thirteen keys per area, plus `inbox' and `tangling', and every one resolves."
   (agile-gtd-org-mcp-test-with-fixtures
-    (let ((refused (lambda (key)
-                     (agile-gtd-org-mcp-test-refusal
-                      (lambda () (agile-gtd-org-mcp-test-view key))))))
-      (dolist (area agile-gtd-org-mcp-test-areas)
-        (dolist (key (append '("next" "backlog" "stuck")
-                             (mapcan (lambda (view)
-                                       (mapcar (lambda (range) (format "%s-%s" view range))
-                                               agile-gtd-view-ranges))
-                                     '("next" "backlog"))))
-          (ert-info ((concat area key))
-            (should-not (funcall refused (concat area key)))))))
-    (should (= (length org-mcp-views)
-               (+ 2 (* 13 (length agile-gtd-org-mcp-test-areas)))))))
+    (let ((resolves (lambda (key)
+                      (not (agile-gtd-org-mcp-test-refusal
+                            (lambda () (agile-gtd-org-mcp-test-view key))))))
+          (listed (agile-gtd-org-mcp-test-listed-keys)))
+      (ert-info ("the grammar's keys and the keys org-view lists are one set")
+        (should (equal (sort (copy-sequence listed) #'string<)
+                       (sort (append '("inbox" "tangling")
+                                     (mapcan #'agile-gtd-org-mcp-test-area-keys
+                                             agile-gtd-org-mcp-test-areas))
+                             #'string<))))
+      (dolist (key listed)
+        (ert-info (key)
+          (should (funcall resolves key))))
+      (ert-info ("one more project is thirteen more keys, each resolving")
+        (setq agile-gtd-projects (append agile-gtd-projects '((:tag "gamma"))))
+        (agile-gtd-refresh)
+        (let ((added (cl-set-difference (agile-gtd-org-mcp-test-listed-keys)
+                                        listed :test #'equal)))
+          (should (equal (sort added #'string<)
+                         (sort (agile-gtd-org-mcp-test-area-keys "gamma-")
+                               #'string<)))
+          (dolist (key added)
+            (ert-info (key)
+              (should (funcall resolves key)))))))))
 
 
 ;;; Order and computed fields
@@ -372,7 +415,10 @@ An [#A] deadline one day out is inside `today' too."
            (org-mcp-query-sort-fn nil)
            (org-mcp-view-catalogue-function nil))
       (agile-gtd-enable)
-      (should (equal org-mcp-views views))
+      (ert-info ("org-view knows the user's view and no key")
+        (should-not (agile-gtd-org-mcp-test-refusal
+                     (lambda () (agile-gtd-org-mcp-test-view "mine"))))
+        (should (equal (agile-gtd-org-mcp-test-listed-keys) '("mine"))))
       (should (equal org-mcp-computed-fields computed))
       (should (equal org-mcp-allowed-files files))
       (should (null org-mcp-file-scope-override))
@@ -380,28 +426,36 @@ An [#A] deadline one day out is inside `today' too."
       (should (null org-mcp-view-catalogue-function)))))
 
 (ert-deftest agile-gtd-org-mcp-user-views-and-fields-survive-a-refresh ()
-  "agile-gtd replaces only its own keys and fields, however often it refreshes."
-  (agile-gtd-test-with-sandbox
-    (let ((agile-gtd-projects agile-gtd-org-mcp-test-projects)
-          (org-mcp-views (list (list 'mine :query '(todo))
-                               (list 'next :query '(todo "OLD"))))
-          (org-mcp-computed-fields (list (cons 'mine #'ignore)
-                                         (cons 'rank #'ignore))))
-      (agile-gtd-enable)
+  "agile-gtd replaces only its own keys and fields, however often it refreshes.
+A view and a computed field of the user's own answer through the tool after
+every refresh; one the user named like an agile-gtd key or field answers as
+agile-gtd's."
+  (agile-gtd-org-mcp-test-with-fixtures
+    (setq org-mcp-views (append org-mcp-views
+                                (list (list 'mine :query '(tags "#inbox"))
+                                      (list 'next :query '(todo "DONE"))))
+          org-mcp-computed-fields (append org-mcp-computed-fields
+                                          (list (cons 'mine (lambda () "own value"))
+                                                (cons 'rank (lambda () "stale")))))
+    (dotimes (refresh 2)
       (agile-gtd-refresh)
-      (should (assq 'mine org-mcp-views))
-      (should (assq 'mine org-mcp-computed-fields))
-      (ert-info ("each of agile-gtd's names is there once, and is its own")
-        (should (= 1 (cl-count 'next org-mcp-views :key #'car)))
-        (should-not (equal (plist-get (cdr (assq 'next org-mcp-views)) :query)
-                           '(todo "OLD")))
-        (should (= 1 (cl-count 'rank org-mcp-computed-fields :key #'car)))
-        (should (eq (cdr (assq 'rank org-mcp-computed-fields))
-                    #'agile-gtd--item-rank)))
-      (ert-info ("a refresh adds nothing twice")
-        (let ((count (length org-mcp-views)))
-          (agile-gtd-refresh)
-          (should (= count (length org-mcp-views))))))))
+      (ert-info ((format "after refresh %d" (1+ refresh)))
+        (let ((nodes (agile-gtd-org-mcp-test-view "mine")))
+          (should (equal (mapcar (lambda (node) (alist-get 'title node)) nodes)
+                         '("Inbox capture")))
+          (should (equal (agile-gtd-org-mcp-test-computed (car nodes) 'mine)
+                         "own value")))
+        (ert-info ("agile-gtd's own names answer as agile-gtd's")
+          (let ((node (agile-gtd-org-mcp-test-node "next" "Private sprint action")))
+            (should node)
+            (should (= (agile-gtd-org-mcp-test-computed node 'rank)
+                       (agile-gtd--prio-rank ?A))))
+          (should-not (member "Finished parent"
+                              (agile-gtd-org-mcp-test-titles "next"))))
+        (ert-info ("a refresh lists nothing twice")
+          (let ((listed (agile-gtd-org-mcp-test-listed-keys)))
+            (should (equal listed (delete-dups (copy-sequence listed))))
+            (should (member "mine" listed))))))))
 
 (ert-deftest agile-gtd-org-mcp-keys-follow-the-registry-on-refresh ()
   "A project added before a refresh resolves at once; a removed one is gone."
