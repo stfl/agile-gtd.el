@@ -285,6 +285,18 @@ Excludes done items and plain (stateless) section headings."
        (should (string-match-p "ACME Corp" (cadar cmds)))
        (should (string-match-p "Globex" (car (cdar (cdr cmds)))))))))
 
+(ert-deftest agile-gtd-areas-cover-everything-private-work-and-every-project ()
+  "One area per registered project, keyed or not; only keyed ones get a command."
+  (let ((agile-gtd-projects '((:tag "alpha" :name "Alpha" :key ?a)
+                              (:tag "beta"))))
+    (let ((areas (agile-gtd-areas)))
+      (should (equal (mapcar (lambda (a) (plist-get a :name)) areas)
+                     '(nil "private" "work" "alpha" "beta")))
+      (should (equal (mapcar (lambda (a) (plist-get a :next-range)) areas)
+                     '(sprint sprint backlog backlog backlog)))
+      (should (equal (mapcar (lambda (a) (car (plist-get a :command))) areas)
+                     '("a" "pp" "ww" "wa" nil))))))
+
 (ert-deftest agile-gtd-project-tags-added-to-tag-alist ()
   "Project tags appear in org-tag-alist after refresh."
   (agile-gtd-agenda-test-with-data

@@ -918,31 +918,90 @@ reader which range is active and that the block ran."
                 'face 'org-agenda-structure)
               "\n\n"))))
 
-(defun agile-gtd--project-agenda-commands ()
-  "Return an agenda command for each project declaring a `:key' character.
-The filter tests for a character rather than for a non-nil `:key',
-because `char-to-string' signals on anything else and this list is built
-while the agenda is configured at startup — a `:key' of \"w\" would take
-the session down rather than cost one project its command."
+(defun agile-gtd--project-areas ()
+  "Return one area for each registered project, whether or not it has a `:key'.
+A project area is named by its tag and filters on it.  Only a project
+declaring a character `:key' gets an agenda command: the filter tests for a
+character rather than for a non-nil `:key', because `char-to-string'
+signals on anything else and this list is built while the agenda is
+configured at startup — a `:key' of \"w\" would take the session down
+rather than cost one project its command."
   (mapcar
    (lambda (project)
-     (let* ((tag  (agile-gtd--project-tag project))
-            (name (agile-gtd--project-name project))
-            (key  (char-to-string (agile-gtd--project-key project)))
-            (filt `(tags ,tag)))
-       `(,(concat "w" key) ,(format "%s Agenda" name)
-         (,(agile-gtd--agenda-day (list (concat "+" tag)))
-          (org-ql-block ',(agile-gtd-agenda-query-stuck-projects filt)
-                        ((org-ql-block-header "Stuck Projects")
-                         (org-super-agenda-header-separator "")))
-          (agile-gtd-agenda-ql-block (agile-gtd-agenda-query-next-actions
-                         ',filt (agile-gtd--agenda-block-range 'backlog) t)
-                        ((org-ql-block-header
-                          (agile-gtd--agenda-block-header "Next Actions" 'backlog))
-                         (org-super-agenda-groups ',(agile-gtd-rank-groups))))))))
-   (cl-remove-if-not (lambda (record)
-                       (characterp (agile-gtd--project-key record)))
-                     (agile-gtd-project-records))))
+     (let ((tag (agile-gtd--project-tag project))
+           (key (agile-gtd--project-key project)))
+       (list :name tag
+             :filter `(tags ,tag)
+             :next-range 'backlog
+             :day-filter (list (concat "+" tag))
+             :command (when (characterp key)
+                        (list (concat "w" (char-to-string key))
+                              (format "%s Agenda"
+                                      (agile-gtd--project-name project)))))))
+   (agile-gtd-project-records)))
+
+(defun agile-gtd-areas ()
+  "Return the areas the agenda commands and the org-mcp views are built from.
+An area is a slice of the outline a question is asked of: everything, the
+private or the work entries, or one project.  Each is a plist:
+
+  :name        The key prefix naming the area, nil for everything.
+  :filter      The org-ql expression restricting a query to the area, nil
+               for everything.
+  :next-range  The range next actions are asked at unless one is named.
+  :day-filter  The tag filter preset of the area\\='s day block.
+  :command     The agenda command\\='s key and description, or nil for an
+               area without a command.
+
+One table feeds both the agenda and the views, so a view key and the agenda
+block it mirrors cannot answer differently."
+  (append
+   (list (list :name nil
+               :filter nil
+               :next-range 'sprint
+               :day-filter nil
+               :command '("a" "Main Agenda"))
+         (list :name "private"
+               :filter '(agile-gtd-private)
+               :next-range 'sprint
+               :day-filter (list (concat "-" agile-gtd-work-tag))
+               :command '("pp" "Private Agenda Today"))
+         (list :name "work"
+               :filter '(agile-gtd-work)
+               :next-range 'backlog
+               :day-filter (list (concat "+" agile-gtd-work-tag))
+               :command '("ww" "Work Agenda Today")))
+   (agile-gtd--project-areas)))
+
+(defun agile-gtd--area (name)
+  "Return the area NAME names, nil naming everything."
+  (cl-find name (agile-gtd-areas)
+           :key (lambda (area) (plist-get area :name))
+           :test #'equal))
+
+(defun agile-gtd--area-agenda-command (area)
+  "Return the agenda command of AREA: its day, stuck projects and next actions.
+The next-actions block opens at the area\\='s `:next-range' and hides what
+the day block above it already carries."
+  (let ((filter (plist-get area :filter))
+        (range (plist-get area :next-range)))
+    `(,@(plist-get area :command)
+      (,(agile-gtd--agenda-day (plist-get area :day-filter))
+       (org-ql-block ',(agile-gtd-agenda-query-stuck-projects filter)
+                     ((org-ql-block-header "Stuck Projects")
+                      (org-super-agenda-header-separator "")))
+       (agile-gtd-agenda-ql-block (agile-gtd-agenda-query-next-actions
+                                   ,(and filter `',filter)
+                                   (agile-gtd--agenda-block-range ',range) t)
+                                  ((org-ql-block-header
+                                    (agile-gtd--agenda-block-header "Next Actions" ',range))
+                                   (org-super-agenda-groups ',(agile-gtd-rank-groups))))))))
+
+(defun agile-gtd--project-agenda-commands ()
+  "Return an agenda command for each project declaring a `:key' character."
+  (mapcar #'agile-gtd--area-agenda-command
+          (cl-remove-if-not (lambda (area) (plist-get area :command))
+                            (agile-gtd--project-areas))))
 
 (defun agile-gtd--agenda-custom-commands ()
   "Return the Agile GTD agenda commands."
@@ -951,16 +1010,7 @@ the session down rather than cost one project its command."
                           (tags ,@agile-gtd-inbox-tags))
                     ((org-ql-block-header "Inbox")
                      (org-super-agenda-groups '((:auto-property "CREATED")))))))
-    ("a" "Main Agenda"
-     (,(agile-gtd--agenda-day)
-      (org-ql-block ',(agile-gtd-agenda-query-stuck-projects)
-                    ((org-ql-block-header "Stuck Projects")
-                     (org-super-agenda-header-separator "")))
-      (agile-gtd-agenda-ql-block (agile-gtd-agenda-query-next-actions
-                     nil (agile-gtd--agenda-block-range 'sprint) t)
-                    ((org-ql-block-header
-                      (agile-gtd--agenda-block-header "Next Actions" 'sprint))
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
+    ,(agile-gtd--area-agenda-command (agile-gtd--area nil))
     ("A" "Agenda Weekly"
      ((agenda ""
               ((org-agenda-span 'week)
@@ -1025,16 +1075,7 @@ the session down rather than cost one project its command."
                      (org-super-agenda-groups ',(list (list :tag agile-gtd-someday-tag :order 10)
                                                       '(:auto-priority)))))))
     ("p" . "Private")
-    ("pp" "Private Agenda Today"
-     (,(agile-gtd--agenda-day (list (concat "-" agile-gtd-work-tag)))
-      (org-ql-block ',(agile-gtd-agenda-query-stuck-projects '(agile-gtd-private))
-                    ((org-ql-block-header "Stuck Projects")
-                     (org-super-agenda-header-separator "")))
-      (agile-gtd-agenda-ql-block (agile-gtd-agenda-query-next-actions
-                     '(agile-gtd-private) (agile-gtd--agenda-block-range 'sprint) t)
-                    ((org-ql-block-header
-                      (agile-gtd--agenda-block-header "Next Actions" 'sprint))
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
+    ,(agile-gtd--area-agenda-command (agile-gtd--area "private"))
     ("pb" "Private Backlog"
      ((agile-gtd-agenda-ql-block (agile-gtd-agenda-query-backlog
                      '(agile-gtd-private) (agile-gtd--agenda-block-range 'all))
@@ -1048,16 +1089,7 @@ the session down rather than cost one project its command."
                      (org-super-agenda-header-separator "")
                      (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
     ("w" . "Work")
-    ("ww" "Work Agenda Today"
-     (,(agile-gtd--agenda-day (list (concat "+" agile-gtd-work-tag)))
-      (org-ql-block ',(agile-gtd-agenda-query-stuck-projects '(agile-gtd-work))
-                    ((org-ql-block-header "Stuck Projects")
-                     (org-super-agenda-header-separator "")))
-      (agile-gtd-agenda-ql-block (agile-gtd-agenda-query-next-actions
-                     '(agile-gtd-work) (agile-gtd--agenda-block-range 'backlog) t)
-                    ((org-ql-block-header
-                      (agile-gtd--agenda-block-header "Next Actions" 'backlog))
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
+    ,(agile-gtd--area-agenda-command (agile-gtd--area "work"))
     ("wb" "Work Backlog"
      ((agile-gtd-agenda-ql-block (agile-gtd-agenda-query-backlog
                      '(agile-gtd-work) (agile-gtd--agenda-block-range 'all))
