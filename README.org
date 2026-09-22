@@ -149,7 +149,7 @@ hard-coded letter:
 
 | Range     | Cutoff                            | Shows                                                                                                  |
 |-----------+-----------------------------------+--------------------------------------------------------------------------------------------------------|
-| =today=   | rank 0                            | Items scheduled or due today, overdue, or due within the two-day deadline window of =[#A]=.            |
+| =today=   | rank 0                            | Items due within the =[#A]= deadline window (two days), today, or overdue, and items scheduled today or earlier. |
 | =sprint=  | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                                         |
 | =backlog= | ~agile-gtd-priority-default~      | The above, plus everything down to the default priority, including every item with no priority cookie. |
 | =all=     | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded.                |
@@ -229,11 +229,10 @@ another, and closing the agenda discards the rotation entirely. Reopening a
 command always returns to its declared range, and so does resetting it; no
 command declares =today=, so it is only ever reached by rotating to it.
 
-An agenda rotated to =today= shows its Next Actions block under the header
-=Next Actions [today]=, and the block is empty unless an action falls due
-within the next two days: everything else inside =today= is scheduled, due or
-overdue, which is the work the day block above it already lists. A backlog
-rotated to =today= lists the projects and standalone actions inside =today=.
+An agenda rotated to =today= shows its Next Actions block empty, under the
+header =Next Actions [today]=: everything inside =today= is work the day block
+above it already lists. A backlog rotated to =today= lists the projects and
+standalone actions inside =today=.
 
 Four further names are callable and work the same range list:
 
@@ -263,8 +262,9 @@ so an external caller gets the same answer every time.
 The next-actions query returns the unblocked =NEXT= and =WAIT= items in the
 range, plus every open task of any state inside =today=, blocked or not. Its
 third argument, =hide-today=, is what the agenda's Next Actions blocks pass:
-it leaves out everything scheduled, due or overdue, that addition included,
-because the day block above already lists it.
+it leaves out everything inside =today=, that addition included, because the
+day block above already lists it. The test is the rank, so it covers both
+halves of the query alike, at every range.
 
 ** Breaking change: ~agile-gtd-max-priority-group~ is removed
 
@@ -414,14 +414,17 @@ The package installs a set of agenda commands under =org-agenda-custom-commands=
 | =w<key>= | /Project/ Agenda        | Per-project daily view (auto-generated)          |
 
 The composite daily views (=a=, =pp=, =ww=, =w<key>=) show three blocks in order:
-1. Agenda (today's scheduled, deadlined, and time-grid items)
+1. Agenda (today's scheduled, deadlined, and time-grid items, and warnings for deadlines within the =[#A]= window)
 2. Stuck Projects (flat list, no grouping)
 3. Next Actions (grouped by ancestor priority)
 
 All three blocks are filtered consistently: =pp= excludes =#work= items, =ww=
 includes only =#work= items, and =w<key>= includes only items tagged with the
 project tag. =a= shows everything unfiltered. The Next Actions block leaves
-out everything the day block above it shows, so no task is listed twice.
+out everything inside the =today= range — due within the =[#A]= deadline
+window, today, or overdue, or scheduled today or earlier — and the day block
+lists all of it, showing a deadline within the =[#A]= window as a warning. No
+task is listed twice, and none falls between the two.
 
 The backlogs (=pb=, =wb=) list projects and standalone =NEXT= / =WAIT= items,
 blocked ones included and dimmed: a backlog is what there is to plan.
@@ -527,24 +530,54 @@ On every refresh, unless =agile-gtd-enable-org-mcp= is nil:
 A key belonging to a project that left the registry goes with it. With the
 flag off, agile-gtd leaves every org-mcp variable as it is.
 
-=agile-gtd= never starts the MCP server; that stays with your configuration,
-after =agile-gtd-enable=. org-mcp resolves a key on every call, so keys added
-by a refresh work at once. The key grammar in the =org-view= tool description
-is written when a client connects, and is rewritten once every client has
-disconnected and one connects again.
+** Setting up org-mcp
+
+=agile-gtd= configures what org-mcp serves; you configure how it runs. Your
+configuration installs the two stdio shims an MCP client launches and starts
+the server. =agile-gtd= never starts it.
 
 #+begin_src emacs-lisp
-(setopt agile-gtd-projects '((:tag "alpha" :key ?a) (:tag "beta") (:tag "gamma")))
-(agile-gtd-enable)
-;; Start the server from your own configuration, e.g.:
-(mcp-server-lib-start)
+(use-package agile-gtd
+  :after org
+  :config
+  (setopt agile-gtd-projects '((:tag "alpha" :key ?a)
+                               (:tag "beta")
+                               (:tag "gamma")))
+  (agile-gtd-enable))
+
+(use-package mcp-server-lib
+  ;; The shim lands in `user-emacs-directory' unless you set
+  ;; `mcp-server-lib-install-directory', e.g. to "~/.emacs.d/bin/".
+  :config
+  (require 'mcp-server-lib-commands)
+  (unless (file-exists-p (mcp-server-lib-installed-script-path))
+    (mcp-server-lib-install)))
+
+(use-package org-mcp
+  ;; After agile-gtd, so the views exist before the first call.
+  :after (org agile-gtd mcp-server-lib)
+  :config
+  (unless (file-exists-p (org-mcp--installed-script-path))
+    (org-mcp-install))
+  (unless mcp-server-lib--running
+    (mcp-server-lib-start)))
 #+end_src
 
-To keep your own org-mcp configuration instead:
+Everything else org-mcp needs for this workflow comes from =agile-gtd-enable=:
+the views, their sort order, the computed fields, the key grammar in the tool
+description, =org-mcp-allowed-files= set to nil and
+=org-mcp-file-scope-override= set to t (see the table above). A value you set
+for any of these yourself is replaced on the next refresh. To keep your own org-mcp
+configuration instead, turn that off before =agile-gtd-enable= runs:
 
 #+begin_src emacs-lisp
 (setopt agile-gtd-enable-org-mcp nil)
 #+end_src
+
+org-mcp resolves a key on every call, so the keys a refresh adds, such as those
+of a project added to the registry, work at once. The key grammar in the =org-view=
+tool description is written when a client connects, and is rewritten once
+every client has disconnected and one connects again.
 
 * Derived concepts
 
