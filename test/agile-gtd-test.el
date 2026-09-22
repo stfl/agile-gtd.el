@@ -34,7 +34,15 @@
           (agile-gtd-projects nil)
           (agile-gtd-enable-agenda-files t)
           (agile-gtd-enable-refile-targets t)
-          (agile-gtd-enable-org-modern-visuals t))
+          (agile-gtd-enable-org-modern-visuals t)
+          (agile-gtd-enable-org-mcp t)
+          (agile-gtd--org-mcp-view-names nil)
+          (org-mcp-views nil)
+          (org-mcp-computed-fields nil)
+          (org-mcp-query-sort-fn nil)
+          (org-mcp-view-catalogue-function nil)
+          (org-mcp-allowed-files nil)
+          (org-mcp-file-scope-override nil))
      (unwind-protect
          (progn
            ,@body)
