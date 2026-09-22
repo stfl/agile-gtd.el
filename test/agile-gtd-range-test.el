@@ -59,6 +59,9 @@ Half the entries here exist only to be that pair."
      (format "DEADLINE: <%s>\n\n" (funcall in 17))
      "* NEXT Bare with very far deadline\n"
      (format "DEADLINE: <%s>\n\n" (funcall in 90))
+     ;; Due today: inside every range, `today' included.
+     "* NEXT Bare due today\n"
+     (format "DEADLINE: <%s>\n\n" (funcall in 0))
      ;; Scheduled beyond today: not actionable until that day arrives.
      "* NEXT Bare scheduled future\n"
      (format "SCHEDULED: <%s>\n\n" (funcall in 11))
@@ -147,7 +150,7 @@ This is the whole contract.  When it breaks, the agenda grows headings for
 priorities the range never claimed to show — the reported symptom."
   (agile-gtd-range-test-with-data
     (dolist (range agile-gtd-view-ranges)
-      (let ((top (agile-gtd--rank-band-top (agile-gtd-view-range-priority range))))
+      (let ((top (agile-gtd-view-range-cutoff range)))
         (dolist (entry (agile-gtd-range-test-ranked
                         buffer (agile-gtd-agenda-query-next-actions nil range)))
           (ert-info ((format "range=%s entry=%S top=%d" range entry top))
@@ -156,6 +159,28 @@ priorities the range never claimed to show — the reported symptom."
                         buffer (agile-gtd-agenda-query-backlog nil range)))
           (ert-info ((format "range=%s backlog entry=%S top=%d" range entry top))
             (should (<= (cdr entry) top))))))))
+
+(ert-deftest agile-gtd-range-within-range-can-be-asked-for-any-range ()
+  "The predicate takes a range name, `today' included, and cuts at its rank.
+A priority character is still accepted and cuts at that priority\='s band."
+  (agile-gtd-range-test-with-data
+    (dolist (range agile-gtd-view-ranges)
+      (let ((cutoff (agile-gtd-view-range-cutoff range))
+            (ranked (agile-gtd-range-test-ranked buffer '(todo))))
+        (ert-info ((format "range=%s" range))
+          (should (equal (agile-gtd-range-test-ranked
+                          buffer `(and (todo) (agile-gtd-within-range ,range)))
+                         (cl-remove-if-not (lambda (entry) (<= (cdr entry) cutoff))
+                                           ranked))))))
+    (ert-info ("today admits the overdue and due-today entries only")
+      (should (equal (mapcar #'car (agile-gtd-range-test-ranked
+                                    buffer '(and (todo) (agile-gtd-within-range today))))
+                     '("Bare due today"))))
+    (ert-info ("a priority character cuts at its band")
+      (should (equal (agile-gtd-range-test-ranked
+                      buffer '(and (todo) (agile-gtd-within-range ?E)))
+                     (agile-gtd-range-test-ranked
+                      buffer '(and (todo) (agile-gtd-within-range backlog))))))))
 
 (ert-deftest agile-gtd-range-backlog-excludes-an-uncookied-child-of-a-low-project ()
   "A bare entry under a [#F] or [#G] project is outside `backlog'.

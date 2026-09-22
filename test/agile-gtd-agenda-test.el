@@ -78,7 +78,24 @@ DEADLINE: <2026-04-06 Mon>
 
 (ert-deftest agile-gtd-view-ranges-run-narrowest-to-widest ()
   "The range vocabulary is ordered, so wider and narrower are unambiguous."
-  (should (equal agile-gtd-view-ranges '(sprint backlog all someday))))
+  (should (equal agile-gtd-view-ranges '(today sprint backlog all someday))))
+
+(ert-deftest agile-gtd-view-range-cutoffs-are-ranks ()
+  "Every range cuts off at a rank, `today' at 0 and the rest at a band top.
+One number per range is what lets the filter and the rank groups agree:
+`today' closes where the \"Today & Overdue\" group closes, and every other
+range where its cutoff priority\='s group does."
+  (should (= (agile-gtd-view-range-cutoff 'today) 0))
+  (dolist (range '(sprint backlog all someday))
+    (ert-info ((format "range=%s" range))
+      (should (= (agile-gtd-view-range-cutoff range)
+                 (agile-gtd--rank-band-top
+                  (agile-gtd-view-range-priority range))))))
+  (ert-info ("The cutoffs widen along the range list")
+    (should (apply #'<= (mapcar #'agile-gtd-view-range-cutoff
+                                agile-gtd-view-ranges))))
+  (ert-info ("An unknown range is refused")
+    (should-error (agile-gtd-view-range-cutoff 'nonsense) :type 'user-error)))
 
 (ert-deftest agile-gtd-view-range-cutoffs-follow-the-priority-configuration ()
   "Each range takes its cutoff from a priority defcustom, never from a letter."
@@ -104,6 +121,7 @@ DEADLINE: <2026-04-06 Mon>
 (ert-deftest agile-gtd-view-range-parked-items-belong-to-someday-alone ()
   "Only the widest range takes in SOMEDAY entries and ticklers."
   (should (agile-gtd-view-range-parked-p 'someday))
+  (should-not (agile-gtd-view-range-parked-p 'today))
   (should-not (agile-gtd-view-range-parked-p 'sprint))
   (should-not (agile-gtd-view-range-parked-p 'backlog))
   (should-not (agile-gtd-view-range-parked-p 'all)))
@@ -336,7 +354,7 @@ form so that org-agenda can eval it without triggering 'Invalid function'."
   (let (results)
     (cl-labels ((walk (node)
                   (when (proper-list-p node)
-                    (if (eq (car node) 'org-ql-block)
+                    (if (memq (car node) '(org-ql-block agile-gtd-agenda-ql-block))
                         (when (cdr node)
                           (push (cadr node) results))
                       (mapc #'walk node)))))
@@ -410,6 +428,11 @@ With the stock configuration those cutoffs are C for `sprint', E for
             ;; (excluded by `not (scheduled)').  No work tag → private only.
             "* NEXT [#B] Scheduled today\n"
             (format "SCHEDULED: <%s>\n" today)
+            ;; A project due today.  Its step carries no date, so only the
+            ;; project itself is inside `today'.
+            "* PROJ Project due today\n"
+            (format "DEADLINE: <%s>\n" today)
+            "** NEXT Step of the project due today\n\n"
             ;; Work item scheduled today: appears in day block in work views only.
             "* NEXT [#A] Work item today :#work:\n"
             (format "SCHEDULED: <%s>\n" today)
@@ -825,7 +848,7 @@ rank code; this is the filter agreeing with both."
 The parked items carry [#A], so no priority cutoff can account for their
 absence — only the someday and schedule gates can."
   (agile-gtd-agenda-test-build-view "a"
-    (dolist (range '(sprint backlog all))
+    (dolist (range '(today sprint backlog all))
       (ert-info ((format "range=%s" range))
         (let ((text (agile-gtd-agenda-test-rotate-to range)))
           (should-not (string-match-p "Parked someday item" text))
@@ -912,14 +935,101 @@ in an agenda view, which filters future schedules as a second, invisible gate."
       (should (equal (agile-gtd-agenda-test-agenda-text) widest)))))
 
 (ert-deftest agile-gtd-agenda-narrowing-clamps-at-the-narrowest-range ()
-  "Narrowing past `sprint' leaves the view exactly as it was."
+  "Narrowing past `today' leaves the view exactly as it was."
   (agile-gtd-agenda-test-build-view "a"
-    (let ((narrowest (agile-gtd-agenda-test-agenda-text)))
-      (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+    (let ((narrowest (agile-gtd-agenda-test-rotate-to 'today)))
       (with-current-buffer (get-buffer org-agenda-buffer-name)
         (agile-gtd-agenda-narrower-range))
-      (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+      (should (eq (agile-gtd-agenda-test-current-range) 'today))
       (should (equal (agile-gtd-agenda-test-agenda-text) narrowest)))))
+
+(ert-deftest agile-gtd-agenda-today-sits-below-sprint-in-the-rotation ()
+  "Narrowing from `sprint' reaches `today', and widening returns to `sprint'."
+  (agile-gtd-agenda-test-build-view "a"
+    (should (eq (agile-gtd-agenda-test-current-range) 'sprint))
+    (with-current-buffer (get-buffer org-agenda-buffer-name)
+      (agile-gtd-agenda-narrower-range))
+    (should (eq (agile-gtd-agenda-test-current-range) 'today))
+    (should (string-match-p "Next Actions \\[today\\]"
+                            (agile-gtd-agenda-test-agenda-text)))
+    (with-current-buffer (get-buffer org-agenda-buffer-name)
+      (agile-gtd-agenda-wider-range))
+    (should (eq (agile-gtd-agenda-test-current-range) 'sprint))))
+
+(ert-deftest agile-gtd-agenda-set-range-accepts-today ()
+  "`today' is picked by name like every other range."
+  (agile-gtd-agenda-test-build-view "pb"
+    (with-current-buffer (get-buffer org-agenda-buffer-name)
+      (agile-gtd-agenda-set-range 'today))
+    (should (eq (agile-gtd-agenda-test-current-range) 'today))
+    (should (string-match-p "Backlog \\[today\\]"
+                            (agile-gtd-agenda-test-agenda-text)))))
+
+(ert-deftest agile-gtd-agenda-reset-returns-to-the-declared-range-from-today ()
+  "Every command opens at its declared range, and reset returns there.
+Adding `today' to the rotation changes nothing until someone switches to it,
+and reset never lands on it."
+  (dolist (case '(("a" sprint "Next Actions")
+                  ("pp" sprint "Next Actions")
+                  ("ww" backlog "Next Actions")
+                  ("pb" all "Backlog")
+                  ("wb" all "Backlog")
+                  ("wa" backlog "Next Actions")))
+    (pcase-let ((`(,key ,declared ,block) case))
+      (ert-info ((format "command %s" key))
+        (agile-gtd-agenda-test-build-view-with
+            ((agile-gtd-projects '((:tag "acme" :name "ACME Corp" :key ?a))))
+            key
+          (should (eq (agile-gtd-agenda-test-current-range) declared))
+          (should (string-match-p (format "%s \\[%s\\]" block declared)
+                                  agenda-text))
+          (agile-gtd-agenda-test-rotate-to 'today)
+          (with-current-buffer (get-buffer org-agenda-buffer-name)
+            (agile-gtd-agenda-reset-range))
+          (should (eq (agile-gtd-agenda-test-current-range) declared))
+          (should (string-match-p (format "%s \\[%s\\]" block declared)
+                                  (agile-gtd-agenda-test-agenda-text))))))))
+
+(ert-deftest agile-gtd-agenda-today-leaves-the-next-actions-block-empty ()
+  "At `today' the next-actions block is empty, headed, under a full day block.
+Everything inside `today' is scheduled, due or overdue, which is exactly what
+the day block above already carries, so the block below it holds nothing."
+  (dolist (key '("a" "pp" "ww"))
+    (ert-info ((format "command %s" key))
+      (agile-gtd-agenda-test-build-view key
+        (let* ((text (agile-gtd-agenda-test-rotate-to 'today))
+               (section (agile-gtd-agenda-test-block-section
+                         text "Next Actions [today]"))
+               (day (agile-gtd-agenda-test-block-section text "Day-agenda")))
+          (should section)
+          (ert-info ("The block holds its header and nothing else")
+            (should (string-empty-p
+                     (string-trim
+                      (string-remove-prefix "Next Actions [today]" section)))))
+          (ert-info ("The day block still lists the day's work")
+            (should day)
+            (should (string-match-p (if (equal key "ww")
+                                        "Work item today"
+                                      "Scheduled today")
+                                    day))))))))
+
+(ert-deftest agile-gtd-agenda-backlog-at-today-lists-only-what-is-due-today ()
+  "A backlog rotated to `today' holds the projects and actions due today.
+Nothing without a date for today comes along, whatever its priority, and
+the one project step without a date stays out while its project is in."
+  (agile-gtd-agenda-test-build-view "pb"
+    (let ((section (agile-gtd-agenda-test-block-section
+                    (agile-gtd-agenda-test-rotate-to 'today) "Backlog [today]")))
+      (should section)
+      (should (string-match-p "Scheduled today" section))
+      (should (string-match-p "Project due today" section))
+      (should-not (string-match-p "Step of the project due today" section))
+      (should-not (string-match-p "High priority action" section))
+      (should-not (string-match-p "Band C item" section))
+      (should-not (string-match-p "Work item today" section))
+      (ert-info ("They land under Today & Overdue and under no priority")
+        (should (string-match-p "Today & Overdue" section))
+        (should-not (string-match-p "Priority [A-I]" section))))))
 
 (ert-deftest agile-gtd-agenda-range-does-not-survive-a-rebuild ()
   "Reopening a command returns it to its declared range."
@@ -956,7 +1066,7 @@ stuck project in the lowest band shows even in the narrowest view."
         (should (string-match-p "Band I stuck project" section)))
       (ert-info ("The header takes no range")
         (should-not (string-match-p "Stuck Projects \\[" section)))
-      (dolist (range '(backlog all someday))
+      (dolist (range '(today backlog all someday))
         (ert-info ((format "range=%s" range))
           (should (equal (agile-gtd-agenda-test-block-section
                           (agile-gtd-agenda-test-rotate-to range)
@@ -966,7 +1076,7 @@ stuck project in the lowest band shows even in the narrowest view."
 (ert-deftest agile-gtd-agenda-stuck-projects-stay-above-next-actions ()
   "Stuck Projects keeps its place above Next Actions at every range."
   (agile-gtd-agenda-test-build-view "a"
-    (dolist (range '(sprint backlog all someday))
+    (dolist (range agile-gtd-view-ranges)
       (ert-info ((format "range=%s" range))
         (let* ((text (agile-gtd-agenda-test-rotate-to range))
                (stuck (string-match "Stuck Projects" text))
@@ -984,7 +1094,7 @@ and the Next Actions block must not name a task the day block already has."
                 (agile-gtd-agenda-test-agenda-text) "Day-agenda")))
       (should day)
       (should (string-match-p "Scheduled today" day))
-      (dolist (range '(backlog all someday))
+      (dolist (range '(today backlog all someday))
         (ert-info ((format "range=%s" range))
           (let ((text (agile-gtd-agenda-test-rotate-to range)))
             (should (equal (agile-gtd-agenda-test-block-section text "Day-agenda")
