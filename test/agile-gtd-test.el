@@ -39,6 +39,7 @@
           (agile-gtd--org-records-mcp-view-names nil)
           (org-records-mcp-views nil)
           (org-records-mcp-computed-fields nil)
+          (org-records-mcp-list-computed-fields nil)
           (org-records-mcp-query-sort-fn nil)
           (org-records-mcp-view-catalogue-function nil)
           (org-records-mcp-allowed-files nil)

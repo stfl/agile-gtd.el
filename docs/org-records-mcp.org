@@ -58,23 +58,24 @@ one, and =stuck=. With three projects registered — say =alpha=, =beta= and
 - =inbox=: open items carrying one of =agile-gtd-inbox-tags=.
 - =tangling=: open items under a finished ancestor.
 
-Every result comes most urgent first, by rank, and each node carries four
-computed fields: =rank=, =parent-priority= (the parent's priority as a
-character code, 65 for =A=), =blocked= (true or false, org-edna aware) and
-=breadcrumbs=.
+Every result comes most urgent first, by rank. A result is an overview: each
+node carries org-records-mcp's list columns (title, state, priority, tags,
+dates and link) and the computed field =rank=. org-records-mcp's =blocked=
+field, which org-edna's blockers set, answers when a call names it in
+=fields=. A second computed field, =parent-priority= (the parent's
+priority as a character code, 65 for =A=), answers when a call names it in
+=computed=, and on a read of the node's link.
 
-=breadcrumbs= lists the node's ancestors, outermost first, so a row titled
-"Write the tests" says which project it belongs to. Each crumb carries the
-ancestor's =title=, the =link= that reads it and its outline =level=. A
-section heading without a keyword is a crumb like any other; the file is
-not one. A top-level node answers an empty array.
+* More columns on a result
 
-#+begin_src json
-"breadcrumbs": [
-  {"title": "Platform", "link": "file:~/org/alpha.org::*Platform", "level": 1},
-  {"title": "Release pipeline", "link": "id:3c1f…", "level": 2}
-]
-#+end_src
+A result carries the overview columns above. A client asks for more on one
+call by naming =fields=, =properties= or =computed=; your configuration
+widens what every result carries, or defines a computed field of its own.
+org-records-mcp documents both in [[https://github.com/stfl/org-records-mcp/blob/main/docs/queries.org#what-a-match-list-carries][What a match list carries]].
+
+agile-gtd adds =rank= to =org-records-mcp-list-computed-fields=
+on each refresh and keeps every other name there, so add your own names to
+that list rather than setting it.
 
 * What agile-gtd sets in org-records-mcp
 
@@ -83,7 +84,8 @@ On every refresh, unless =agile-gtd-enable-org-records-mcp= is nil:
 | Variable                                  | Set to                                                                 |
 |-------------------------------------------+------------------------------------------------------------------------|
 | =org-records-mcp-views=                   | the keys, merged by name; views under other names stay                 |
-| =org-records-mcp-computed-fields=         | =rank=, =parent-priority=, =blocked= and =breadcrumbs=, merged by name |
+| =org-records-mcp-computed-fields=         | =rank= and =parent-priority=, merged by name                           |
+| =org-records-mcp-list-computed-fields=    | =rank= added, so a result carries it unasked                           |
 | =org-records-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator                           |
 | =org-records-mcp-view-catalogue-function= | the key grammar, in place of one line per key                          |
 | =org-records-mcp-allowed-files=           | nil, so views run over =org-agenda-files=                              |

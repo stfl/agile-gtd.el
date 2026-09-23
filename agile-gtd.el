@@ -232,13 +232,15 @@ When nil, derive it from `agile-gtd-priority-default'."
 
 (defcustom agile-gtd-enable-org-records-mcp t
   "Whether `agile-gtd-refresh' should configure org-records-mcp.
-When non-nil, every refresh generates one org-records-mcp view per key and merges
-them into `org-records-mcp-views', merges the `rank', `parent-priority',
-`blocked' and `breadcrumbs' computed fields into
-`org-records-mcp-computed-fields', sorts views by
-rank, describes the keys through `org-records-mcp-view-catalogue-function', and
-sets `org-records-mcp-allowed-files' to nil and `org-records-mcp-file-scope-override' to
-t.  Views and computed fields under other names are left alone.
+When non-nil, every refresh generates one org-records-mcp view per
+key and merges them into `org-records-mcp-views', merges the `rank' and
+`parent-priority' computed fields into `org-records-mcp-computed-fields',
+adds `rank' to `org-records-mcp-list-computed-fields', sorts views by
+rank, describes the keys through
+`org-records-mcp-view-catalogue-function', and sets
+`org-records-mcp-allowed-files' to nil and
+`org-records-mcp-file-scope-override' to t.  Views and computed fields
+under other names are left alone.
 Starting the MCP server stays with the user\\='s configuration."
   :type 'boolean
   :group 'agile-gtd)
@@ -1665,37 +1667,25 @@ commands are built from."
           (list (list 'inbox :query (agile-gtd-agenda-query-inbox))
                 (list 'tangling :query '(agile-gtd-tangling)))))
 
-(defun agile-gtd--item-blocked ()
-  "Return t when the Org item at point is blocked, else `:json-false'.
-A computed field answering nil is left out of a node, and a missing
-`blocked\' reads as not known rather than as not blocked."
-  (if (org-entry-blocked-p) t :json-false))
-
-(defun agile-gtd--item-breadcrumbs ()
-  "Return the ancestors of the Org item at point, outermost first.
-The value is a vector of alists carrying `title', `link' and `level'.
-Title and link are the ones org-records-mcp gives the ancestor itself,
-so a crumb's link reads that heading.  The node itself is no crumb.
-A top-level heading, or the file, answers an empty vector: a computed
-field answering nil is left out of a node, and a missing
-`breadcrumbs' reads as not known rather than as having no parent."
-  (let (crumbs)
-    (org-with-wide-buffer
-     (unless (org-before-first-heading-p)
-       (org-back-to-heading t)
-       (while (org-up-heading-safe)
-         (push `((title . ,(org-records-mcp--title-at-point))
-                 (link . ,(org-records-mcp--link-at-point))
-                 (level . ,(org-outline-level)))
-               crumbs))))
-    (vconcat crumbs)))
-
 (defun agile-gtd--org-records-mcp-computed-fields ()
   "Return the computed fields agile-gtd gives every org-records-mcp node."
   (list (cons 'rank #'agile-gtd--item-rank)
-        (cons 'parent-priority #'agile-gtd--direct-parent-priority)
-        (cons 'blocked #'agile-gtd--item-blocked)
-        (cons 'breadcrumbs #'agile-gtd--item-breadcrumbs)))
+        (cons 'parent-priority #'agile-gtd--direct-parent-priority)))
+
+(defconst agile-gtd--org-records-mcp-list-computed-fields '(rank)
+  "The computed fields an org-records-mcp match list carries unasked.
+A list row carries the rank the list is sorted by; the parent's
+priority belongs to a read of the row's link.")
+
+(defun agile-gtd--org-records-mcp-list-computed-fields (current)
+  "Return CURRENT with agile-gtd's list computed fields added.
+CURRENT is `org-records-mcp-list-computed-fields': `all' stays as it is,
+and a list keeps its own names, in order, ahead of agile-gtd's."
+  (if (eq current 'all)
+      current
+    (append current
+            (seq-difference agile-gtd--org-records-mcp-list-computed-fields
+                            current))))
 
 (defun agile-gtd--join-words (words)
   "Return WORDS joined as prose: \"a\", \"a and b\", \"a, b and c\"."
@@ -1751,9 +1741,8 @@ range.  A key is [<area>-]<view>[-<range>], for example private-next, \
       indent (concat "Without a range, next runs at "
                      (string-join defaults ", and at ")
                      "; backlog runs at all.  Every result is sorted by rank, \
-most urgent first, and each node carries the computed fields rank, \
-parent-priority, blocked and breadcrumbs: its ancestors, outermost first, \
-each with title, link and level.")
+most urgent first, and each node carries the computed field rank.  \
+Ask for parent-priority by name in computed.")
       t))))
 
 (defvar agile-gtd--org-records-mcp-view-names nil
@@ -1782,6 +1771,8 @@ org-view description when a client connects."
             org-records-mcp-computed-fields (agile-gtd--merge-by-name
                                      org-records-mcp-computed-fields
                                      (agile-gtd--org-records-mcp-computed-fields))
+            org-records-mcp-list-computed-fields (agile-gtd--org-records-mcp-list-computed-fields
+                                                  org-records-mcp-list-computed-fields)
             org-records-mcp-query-sort-fn #'agile-gtd--item-rank<
             org-records-mcp-view-catalogue-function #'agile-gtd-org-records-mcp-view-catalogue
             org-records-mcp-allowed-files nil

@@ -113,11 +113,12 @@
                       (file-in-directory-p (buffer-file-name buffer) org-directory))
              (kill-buffer buffer)))))))
 
-(defun agile-gtd-org-records-mcp-test-view (key &optional filter range)
+(defun agile-gtd-org-records-mcp-test-view (key &optional filter range computed fields)
   "Return the nodes the org-view tool answers KEY with, as alists.
-FILTER and RANGE are passed as a client would pass them."
+FILTER, RANGE, COMPUTED and FIELDS are passed as a client would pass them."
   (append (alist-get 'children
-                     (json-parse-string (org-records-mcp--tool-view key filter range)
+                     (json-parse-string (org-records-mcp--tool-view
+                                         key filter range fields nil computed)
                                         :object-type 'alist
                                         :false-object :false))
           nil))
@@ -131,9 +132,11 @@ FILTER and RANGE are passed as a client would pass them."
   "Return the computed FIELD of NODE."
   (alist-get field (alist-get 'computed node)))
 
-(defun agile-gtd-org-records-mcp-test-node (key title)
-  "Return the node titled TITLE in the answer to KEY."
-  (cl-find title (agile-gtd-org-records-mcp-test-view key)
+(defun agile-gtd-org-records-mcp-test-node (key title &optional computed fields)
+  "Return the node titled TITLE in the answer to KEY.
+COMPUTED and FIELDS are the view's parameters, as a client would pass them;
+FIELDS must name `title'."
+  (cl-find title (agile-gtd-org-records-mcp-test-view key nil nil computed fields)
            :key (lambda (node) (alist-get 'title node))
            :test #'equal))
 
@@ -370,67 +373,31 @@ Its undated step is not pulled along: it ranks where its own cookie puts it."
                       '("Private todo scheduled today" "Private blocked due today"
                         "Private due tomorrow"))))))
 
-(ert-deftest agile-gtd-org-records-mcp-nodes-carry-rank-parent-priority-and-blocked ()
-  "Each node carries `rank', `parent-priority' and `blocked'."
+(ert-deftest agile-gtd-org-records-mcp-nodes-carry-rank-unasked ()
+  "A view's nodes carry `rank' and no other computed field unasked."
   (agile-gtd-org-records-mcp-test-with-fixtures
-    (let ((step (agile-gtd-org-records-mcp-test-node "work-next" "Work project step")))
+    (dolist (key '("next" "work-backlog" "inbox" "tangling"))
+      (ert-info (key)
+        (dolist (node (agile-gtd-org-records-mcp-test-view key))
+          (should (equal (mapcar #'car (alist-get 'computed node)) '(rank))))))))
+
+(ert-deftest agile-gtd-org-records-mcp-nodes-carry-rank-parent-priority-and-blocked ()
+  "Each node carries `rank' and `parent-priority' when asked, and `blocked'.
+`blocked' is org-records-mcp's node field; it is here because org-edna's
+blockers are agile-gtd's, and a view must see them."
+  (agile-gtd-org-records-mcp-test-with-fixtures
+    (let ((step (agile-gtd-org-records-mcp-test-node
+                 "work-next" "Work project step" "all" ["title" "blocked"])))
       (should (= (agile-gtd-org-records-mcp-test-computed step 'rank) (agile-gtd--prio-rank ?C)))
       (should (= (agile-gtd-org-records-mcp-test-computed step 'parent-priority) ?C))
-      (should (eq (agile-gtd-org-records-mcp-test-computed step 'blocked) :false)))
-    (let ((blocked (agile-gtd-org-records-mcp-test-node "private-backlog" "Private chain blocked")))
-      (should (eq (agile-gtd-org-records-mcp-test-computed blocked 'blocked) t)))
-    (let ((due (agile-gtd-org-records-mcp-test-node "next-today" "Private blocked due today")))
-      (should (eq (agile-gtd-org-records-mcp-test-computed due 'blocked) t))
+      (should (eq (alist-get 'blocked step) :false)))
+    (let ((blocked (agile-gtd-org-records-mcp-test-node
+                    "private-backlog" "Private chain blocked" nil ["title" "blocked"])))
+      (should (eq (alist-get 'blocked blocked) t)))
+    (let ((due (agile-gtd-org-records-mcp-test-node
+                "next-today" "Private blocked due today" nil ["title" "blocked"])))
+      (should (eq (alist-get 'blocked due) t))
       (should (<= (agile-gtd-org-records-mcp-test-computed due 'rank) 0)))))
-
-(ert-deftest agile-gtd-org-records-mcp-nodes-carry-their-breadcrumbs ()
-  "A node's `breadcrumbs' name its parent by title, link and level.
-A top-level node answers an empty array rather than leaving the field out."
-  (agile-gtd-org-records-mcp-test-with-fixtures
-    (let* ((step (agile-gtd-org-records-mcp-test-node "work-next" "Work project step"))
-           (crumbs (agile-gtd-org-records-mcp-test-computed step 'breadcrumbs)))
-      (should (= (length crumbs) 1))
-      (should (equal (alist-get 'title (aref crumbs 0)) "Work project"))
-      (should (equal (alist-get 'link (aref crumbs 0))
-                     (concat "file:"
-                             (abbreviate-file-name
-                              (expand-file-name "todo.org" org-directory))
-                             "::*Work project")))
-      (should (= (alist-get 'level (aref crumbs 0)) 1)))
-    (let ((top (agile-gtd-org-records-mcp-test-node "work-next" "Work action")))
-      (should (equal (agile-gtd-org-records-mcp-test-computed top 'breadcrumbs) [])))))
-
-(ert-deftest agile-gtd-org-records-mcp-breadcrumbs-run-outermost-first ()
-  "Every ancestor is a crumb, outermost first; the node itself is not one.
-An ancestor with an ID is linked by it, and a section without a keyword
-counts as much as a task."
-  (agile-gtd-test-with-sandbox
-    (agile-gtd-enable)
-    (let ((file (expand-file-name "deep.org" org-directory)))
-      (with-temp-file file
-        (insert "* Section\n"
-                "** EPIC Epic\n:PROPERTIES:\n:ID:       epic-id\n:END:\n"
-                "*** PROJ [#B] Project :tag:\n"
-                "**** NEXT Step\n"))
-      (with-current-buffer (find-file-noselect file)
-        (unwind-protect
-            (progn
-              (goto-char (point-min))
-              (re-search-forward "^\\*\\*\\*\\* NEXT Step")
-              (should (equal (agile-gtd--item-breadcrumbs)
-                             `[((title . "Section")
-                                (link . ,(concat "file:" (abbreviate-file-name file)
-                                                 "::*Section"))
-                                (level . 1))
-                               ((title . "Epic") (link . "id:epic-id") (level . 2))
-                               ((title . "Project")
-                                (link . ,(concat "file:" (abbreviate-file-name file)
-                                                 "::*Project"))
-                                (level . 3))]))
-              (goto-char (point-min))
-              (should (equal (agile-gtd--item-breadcrumbs) [])))
-          (kill-buffer))))))
-
 
 ;;; Refusals
 
@@ -465,6 +432,20 @@ counts as much as a task."
     (setq org-records-mcp-allowed-files '("mine.org")
           org-records-mcp-file-scope-override '("~/elsewhere"))
     (agile-gtd-enable)
+    (should (equal org-records-mcp-list-computed-fields '(rank)))
+    (ert-info ("a refresh adds agile-gtd's names once, after the user's own")
+      (setq org-records-mcp-list-computed-fields '(mine rank))
+      (agile-gtd-refresh)
+      (agile-gtd-refresh)
+      (should (equal org-records-mcp-list-computed-fields '(mine rank))))
+    (ert-info ("agile-gtd's names follow the user's own")
+      (setq org-records-mcp-list-computed-fields '(mine))
+      (agile-gtd-refresh)
+      (should (equal org-records-mcp-list-computed-fields '(mine rank))))
+    (ert-info ("every field stays every field")
+      (setq org-records-mcp-list-computed-fields 'all)
+      (agile-gtd-refresh)
+      (should (eq org-records-mcp-list-computed-fields 'all)))
     (should (eq org-records-mcp-query-sort-fn #'agile-gtd--item-rank<))
     (should (null org-records-mcp-allowed-files))
     (should (eq org-records-mcp-file-scope-override t))
@@ -482,6 +463,7 @@ counts as much as a task."
            (org-records-mcp-computed-fields (copy-tree computed))
            (org-records-mcp-allowed-files (copy-sequence files))
            (org-records-mcp-file-scope-override nil)
+           (org-records-mcp-list-computed-fields 'all)
            (org-records-mcp-query-sort-fn nil)
            (org-records-mcp-view-catalogue-function nil))
       (agile-gtd-enable)
@@ -492,6 +474,7 @@ counts as much as a task."
       (should (equal org-records-mcp-computed-fields computed))
       (should (equal org-records-mcp-allowed-files files))
       (should (null org-records-mcp-file-scope-override))
+      (should (eq org-records-mcp-list-computed-fields 'all))
       (should (null org-records-mcp-query-sort-fn))
       (should (null org-records-mcp-view-catalogue-function)))))
 
@@ -510,7 +493,7 @@ agile-gtd's."
     (dotimes (refresh 2)
       (agile-gtd-refresh)
       (ert-info ((format "after refresh %d" (1+ refresh)))
-        (let ((nodes (agile-gtd-org-records-mcp-test-view "mine")))
+        (let ((nodes (agile-gtd-org-records-mcp-test-view "mine" nil nil "all")))
           (should (equal (mapcar (lambda (node) (alist-get 'title node)) nodes)
                          '("Inbox capture")))
           (should (equal (agile-gtd-org-records-mcp-test-computed (car nodes) 'mine)

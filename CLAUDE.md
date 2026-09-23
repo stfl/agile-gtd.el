@@ -64,9 +64,8 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion t
 
 **org-records-mcp views** (`agile-gtd--apply-org-records-mcp`, behind `agile-gtd-enable-org-records-mcp`)
 - `agile-gtd-org-records-mcp-views` generates keys `[<area>-]<view>[-<range>]`: 13 per area plus `inbox` and `tangling`. Each carries a literal `:query` and no `:filter`/`:range`, so org-records-mcp refuses parameters
-- The apply step merges views and the `rank`/`parent-priority`/`blocked`/`breadcrumbs` computed fields by name (dropping keys recorded in `agile-gtd--org-records-mcp-view-names` from the previous refresh), sets `org-records-mcp-query-sort-fn`, `org-records-mcp-view-catalogue-function`, `org-records-mcp-allowed-files` (nil) and `org-records-mcp-file-scope-override` (t). It never starts the MCP server
-- `blocked` answers `:json-false` and `breadcrumbs` an empty vector rather than nil, because org-records-mcp drops nil computed fields
-- `breadcrumbs` takes each ancestor's title and link from `org-records-mcp--title-at-point` / `--link-at-point`, private functions, so a crumb matches what a read of that ancestor returns; a rename there breaks the field
+- The apply step merges views and the `rank`/`parent-priority` computed fields by name (dropping keys recorded in `agile-gtd--org-records-mcp-view-names` from the previous refresh), adds `rank` to `org-records-mcp-list-computed-fields` (what a match list carries unasked; `all` and the user's names are kept), sets `org-records-mcp-query-sort-fn`, `org-records-mcp-view-catalogue-function`, `org-records-mcp-allowed-files` (nil) and `org-records-mcp-file-scope-override` (t). It never starts the MCP server
+- `blocked` and `breadcrumbs` are org-records-mcp node fields, not agile-gtd computed fields. `blocked` answers `org-blocker-hook`, so it sees org-edna's blockers only while `agile-gtd--apply-org-settings` keeps `org-edna-mode` on
 - `agile-gtd-org-records-mcp-view-catalogue` writes the `org-view` description from the area table and range list; keep its words in step with the queries
 
 **Rank / sort key** (`agile-gtd--item-rank`, `agile-gtd--item-rank<`)
