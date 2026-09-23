@@ -694,9 +694,15 @@ configuring:
 - agenda commands for inbox, today, review, stuck projects, and backlog views
 - org-records-mcp view keys, computed fields, sorting and file scope, unless
   =agile-gtd-enable-org-records-mcp= is nil; see [[*Views for AI assistants (org-records-mcp)][Views for AI assistants (org-records-mcp)]]
+- the Org options the workflow depends on: org-edna-mode, logging into the
+  =LOGBOOK=, the archive location, org-habit, agenda behaviour and
+  inheritance, unless =agile-gtd-enable-org-settings= is nil
 
 =agile-gtd-refresh= stops there. =agile-gtd-enable= also runs the startup tag
 check (see [[*Tag check at startup][Tag check at startup]]).
+
+[[file:docs/org-settings.org][Org settings agile-gtd applies]] lists each of those options with its value and
+the reason for it, and shows how to override one or turn the step off.
 
 The exact file layout is user-configurable through variables such as
 =agile-gtd-inbox-file=, =agile-gtd-todo-file=, and =agile-gtd-projects=,

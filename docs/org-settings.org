@@ -1,0 +1,128 @@
+#+title: Org settings agile-gtd applies
+
+The workflow depends on a set of plain Org options: how blocking works, what
+gets logged, where archives go, how habits show, how the agenda behaves and
+what inherits. =agile-gtd-enable= and =agile-gtd-refresh= apply them, so a
+configuration that loads agile-gtd needs none of them itself.
+
+This page lists each setting, the value agile-gtd gives it, and why the
+workflow needs that value.
+
+* Turning the step off, or overriding one value
+
+The settings are applied on every refresh while =agile-gtd-enable-org-settings=
+is non-nil, which is the default.
+
+To keep your own values for all of them, turn the step off before
+=agile-gtd-enable= runs. Nothing on this page is touched then, org-edna-mode
+included:
+
+#+begin_src emacs-lisp
+(setopt agile-gtd-enable-org-settings nil)
+(agile-gtd-enable)
+#+end_src
+
+To change a single value and keep the rest, set it after =agile-gtd-enable=:
+
+#+begin_src emacs-lisp
+(agile-gtd-enable)
+(setq org-agenda-span 'week)
+#+end_src
+
+A later =agile-gtd-refresh= applies the agile-gtd value again. If you call
+=agile-gtd-refresh= yourself, set your value after that call too.
+
+agile-gtd sets the default value of each variable. A file whose =#+STARTUP:=
+options or =#+ARCHIVE:= line make one of them local to its buffer keeps its
+own value.
+
+* Dependencies
+
+Blocking belongs to org-edna alone: a task is blocked when its =BLOCKER=
+property says so, and nothing else blocks it. See
+[[file:../README.org::*Task dependencies][Task dependencies]] in the README for the =TRIGGER= / =BLOCKER= chain
+pattern.
+
+| Setting                                  | Value       | Why                                                                                                                                                                                                                                             |
+|------------------------------------------+-------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =org-edna-mode=                          | on          | =TRIGGER= and =BLOCKER= do nothing without it. The =agile-gtd-blocked= predicate, and the =blocked= field in org-records-mcp read org-edna's answer, and the chain helpers write properties only org-edna acts on.                              |
+| =org-enforce-todo-dependencies=          | =nil=       | With it on, Org counts a parent as blocked while any child is open. Every =PROJ= and =EPIC= with work left would be blocked, and hidden from the agenda with it.                                                                                |
+| =org-enforce-todo-checkbox-dependencies= | =nil=       | With it on, an unchecked checklist blocks its task, and the task drops out of the next actions. A checklist is part of a task, not a dependency.                                                                                                |
+| =org-agenda-dim-blocked-tasks=           | =invisible= | A blocked task cannot be started, so agendas hide it, the day block included. The /Private Backlog/ (=pb=) and /Work Backlog/ (=wb=) commands set it to =t= for themselves: a blocked step is part of the plan, so the backlogs show it dimmed. |
+
+org-edna-mode is a global mode: turning it on once covers every Org buffer.
+agile-gtd also removes Org's own blockers from =org-blocker-hook=, which
+Org installs whenever the two enforce options are switched on through
+Customize.
+
+* Logging
+
+State changes and notes are the task's history. The weekly review reads it
+through the /Agenda Weekly with Log/ command (=l=), which lists state changes
+from the agenda files and their archives.
+
+| Setting                                    | Value       | Why                                                                                                                                                                         |
+|--------------------------------------------+-------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =org-log-into-drawer=                      | =t=         | State changes, notes and reschedules go into the =LOGBOOK= drawer and leave the body of the heading to its content.                                                         |
+| =org-log-done=                             | =time+note= | Closing a task records when, and asks for a closing note: what was done, or why it was killed.                                                                              |
+| =org-log-repeat=                           | =time=      | Each pass of a repeating task leaves a dated line, so a habit or recurring action keeps its history.                                                                        |
+| =org-log-redeadline=                       | =time=      | A moved deadline is recorded. Deadlines feed the rank, and a deadline that keeps moving shows in the log.                                                                   |
+| =org-log-reschedule=                       | =time=      | A moved scheduled date is recorded, for the same reason.                                                                                                                    |
+| =org-log-state-notes-insert-after-drawers= | =nil=       | Has no effect while notes go into the drawer. In a file that turns the drawer off (=#+STARTUP: nologdrawer=), notes go right under the heading, ahead of its other drawers. |
+
+* Archive and habits
+
+| Setting                    | Value                                        | Why                                                                                                                                                                                                              |
+|----------------------------+----------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =org-archive-location=     | =archive/%s::datetree= under =org-directory= | Archived subtrees land in one directory, one file per source file, filed by date. The log and clock views read archives through this location, and the startup tag check looks for each project's archive there. |
+| =org-modules=              | adds =org-habit=                             | Habits are a workflow tag (=HABIT=) and a group of their own in the agenda. The group and the habit query predicates need org-habit loaded.                                                                      |
+| =org-habit-show-habits=    | =t=                                          | Habits show in the day agenda, in their own group.                                                                                                                                                               |
+| =org-habit-preceding-days= | =14=                                         | The consistency graph of a habit shows the last two weeks.                                                                                                                                                       |
+| =org-habit-following-days= | =7=                                          | The graph shows the week ahead.                                                                                                                                                                                  |
+
+The archive location is derived from =org-directory= on every refresh, so it
+follows a change to =org-directory=.
+
+* Agenda behaviour
+
+The day block at the top of the daily commands (=a=, =pp=, =ww= and each
+project's command) sets its own span, start day, time grid and deadline
+warning. Those four settings below govern the agenda commands that leave them
+open: the weekly views (=A=, =l=, =c=) and Org's built-in agenda views. The
+other settings apply to every agenda block, the day block included, so done
+work leaves the agenda and a date shows once.
+
+| Setting                                            | Value   | Why                                                                                                          |
+|----------------------------------------------------+---------+--------------------------------------------------------------------------------------------------------------|
+| =org-agenda-span=                                  | =day=   | An agenda that does not choose its span shows one day: today's commitments.                                  |
+| =org-agenda-start-day=                             | ="-0d"= | An agenda that does not choose its start begins today.                                                       |
+| =org-deadline-warning-days=                        | =7=     | A deadline warns a week ahead, the same window that pulls an item into the sprint.                           |
+| =org-agenda-use-time-grid=                         | =t=     | Agenda days place timed entries on a time grid.                                                              |
+| =org-agenda-start-on-weekday=                      | =nil=   | A multi-day agenda starts on today, not on Monday. The weekly commands start on Monday by their own setting. |
+| =org-agenda-include-deadlines=                     | =t=     | Deadlines show in agenda days.                                                                               |
+| =org-agenda-skip-scheduled-if-done=                | =t=     | Done work leaves the agenda.                                                                                 |
+| =org-agenda-skip-deadline-if-done=                 | =t=     | Done work leaves the agenda.                                                                                 |
+| =org-agenda-skip-timestamp-if-done=                | =t=     | Done work leaves the agenda.                                                                                 |
+| =org-agenda-skip-deadline-prewarning-if-scheduled= | =t=     | A task already scheduled does not also warn ahead of its deadline: when to do it is decided.                 |
+| =org-agenda-skip-scheduled-delay-if-deadline=      | =t=     | A task with a deadline ignores a delay on its scheduled date, so the deadline decides when it shows.         |
+| =org-agenda-skip-scheduled-if-deadline-is-shown=   | =t=     | A task shows once, under its deadline, not twice.                                                            |
+| =org-agenda-skip-timestamp-if-deadline-is-shown=   | =t=     | Likewise for a plain timestamp.                                                                              |
+| =org-agenda-show-future-repeats=                   | =t=     | A repeating task shows on each of its future dates in a multi-day agenda.                                    |
+| =org-agenda-todo-list-sublevels=                   | =t=     | TODO lists include the tasks inside a project, not only the project heading.                                 |
+| =org-agenda-tags-todo-honor-ignore-options=        | =t=     | Tag and TODO searches honour the same date-based ignore options as the TODO list.                            |
+| =org-agenda-skip-unavailable-files=                | =t=     | A registered file that does not exist yet is skipped instead of prompting every time an agenda is built.     |
+
+Options that only change how an agenda looks, such as
+=org-agenda-block-separator=, =org-agenda-tags-column=,
+=org-agenda-window-setup= and =org-agenda-sticky=, stay with your
+configuration.
+
+* Inheritance
+
+| Setting                        | Value | Why                                                                                                                                                                                                   |
+|--------------------------------+-------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =org-use-tag-inheritance=      | =t=   | Area tags (=#work=), project and client tags, and =SOMEDAY= arrive through =#+filetags:= and parent headings. The area filters, the project views and the startup tag check all match inherited tags. |
+| =org-use-property-inheritance= | =t=   | A property set on a project, or on a file with =#+PROPERTY:=, holds for the tasks beneath it wherever a query asks for inherited values.                                                              |
+
+Org's default for =org-use-tag-inheritance= is already =t=; agile-gtd states
+it because the workflow breaks without it.

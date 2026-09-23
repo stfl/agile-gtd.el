@@ -81,6 +81,13 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion t
 - Workflow tags (SOMEDAY, HABIT, LASTMILE, #work, #personal) managed in `agile-gtd--workflow-tag-alist`
 - Customer tags injected alongside workflow tags on `agile-gtd-enable`
 
+**Org settings** (`agile-gtd--apply-org-settings`, behind `agile-gtd-enable-org-settings`, default t)
+- Runs first in `agile-gtd-refresh`: turns on `org-edna-mode`, adds `org-habit` to `org-modules`, removes Org's own enforce blockers from `org-blocker-hook`, and `set-default`s every pair in `agile-gtd--org-settings`
+- `set-default`, not `setq`: a refresh run from an Org buffer whose startup options made a variable local must not change that buffer alone
+- `org-archive-location` derives from `org-directory` through `agile-gtd--expand-org-path`; values that follow from agile-gtd's own configuration are derived, never hard-coded
+- Blocked tasks are hidden globally (`org-agenda-dim-blocked-tasks` `invisible`); the `pb`/`wb` backlogs dim them with a command-level setting, because `org-agenda-finalize` sees only command settings, never a block's
+- A setting added here goes into both test sandboxes and into [docs/org-settings.org](docs/org-settings.org), with its reason
+
 **org-edna integration**
 - `agile-gtd-trigger-next-sibling` / `agile-gtd-blocker-previous-sibling` wire up task-chaining via org-edna triggers/blockers
 - `agile-gtd-chain-task` sets both properties on the current heading
@@ -103,4 +110,4 @@ Tests live in `test/` and are split by concern:
 | `agile-gtd-startup-test.el` | the project registry, its normalisation and skip-and-warn, and the project-tag startup check |
 | `agile-gtd-org-records-mcp-test.el` | the org-records-mcp view keys, called through `org-records-mcp--tool-view` over fixture files; computed fields, refusals, the apply step and its flag |
 
-The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd/org-records-mcp variables to clean defaults and using a temporary `org-directory`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.
+The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd/org-records-mcp variables to clean defaults and using a temporary `org-directory`.  It and `agile-gtd-org-ql-test-with-sandbox` both bind every variable `agile-gtd--apply-org-settings` sets, plus `org-edna-mode`, `org-blocker-hook`, `org-trigger-hook` and `org-modules`; keep both in step with `agile-gtd--org-settings`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.
