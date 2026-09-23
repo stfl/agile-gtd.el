@@ -1,0 +1,130 @@
+#+title: View ranges
+
+How the five ranges =today=, =sprint=, =upcoming=, =all= and =someday= cut
+the agenda, which command opens at which range, and how to widen or narrow a
+view. Back to the [[file:../README.org][README]].
+
+Agenda commands filter their Next Actions and Backlog blocks through one of
+five named ranges, ordered narrowest to widest: =today -> sprint -> upcoming ->
+all -> someday=. Each range's cutoff is a rank. =today= closes at rank 0; every
+other range closes at the band of an existing priority defcustom, never at a
+hard-coded letter:
+
+| Range      | Cutoff                            | Shows                                                                                                                    |
+|------------+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------|
+| =today=    | rank 0                            | Items with any deadline within two days (the =[#A]= deadline window), due today, overdue, or scheduled today or earlier. |
+| =sprint=   | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                                                           |
+| =upcoming= | ~agile-gtd-priority-default~      | The above, plus everything down to the default priority, including every item with no priority cookie.                   |
+| =all=      | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded.                                  |
+| =someday=  | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                                                        |
+
+* What a cutoff actually tests
+
+A range admits an item when its /rank/ — the one number
+~agile-gtd--item-rank~ computes, and the same one the priority groups are
+built from — is at or below the range's cutoff: rank 0 for =today=, the
+cutoff priority's band for the others.  Filtering and grouping read the same
+boundary, so a range can never show a heading for a priority it stops short
+of.  Everything =today= admits lands in the =Today & Overdue= group, which
+closes at the same rank 0.
+
+Rank folds four claims on urgency into that number, and each of them alone is
+enough to bring an item into a range: its own priority cookie, its parent's,
+an approaching deadline, and a schedule that has come due.
+
+Two consequences are worth stating plainly.
+
+A missing priority cookie counts as exactly ~agile-gtd-priority-default~ (=E=
+by default; see [[file:priorities-and-rank.org::*Priorities][Priorities]]).  The =upcoming= range and every
+wider range therefore include every unprioritised item that has no other
+reason to rank lower; =sprint= does not, since its cutoff sits above the
+default.
+
+A cookie on the parent is such a reason.  A bare next action under a =[#G]=
+project is =G= work and leaves =upcoming= at exactly the cutoff a =[#G]= cookie
+of its own would take it out at.  Inheritance decides where an item is
+grouped, so it must decide whether the item is admitted too.
+
+* Which command opens at which range
+
+Each agenda command declares the range its Next Actions and Backlog blocks
+open at (see [[file:agenda-commands.org][Agenda commands]] for the full command list):
+
+| Key      | Name                  | Declared range |
+|----------+-----------------------+----------------|
+| =a=      | Main Agenda           | =sprint=       |
+| =pp=     | Private Agenda Today  | =sprint=       |
+| =ww=     | Work Agenda Today     | =upcoming=     |
+| =w<key>= | Per-project agenda    | =upcoming=     |
+| =pb=     | Private Backlog       | =all=          |
+| =wb=     | Work Backlog          | =all=          |
+
+A command being a backlog decides its range, not the prefix it sits under:
+=pb= and =wb= sit under different prefixes but are both backlogs, so both
+open at =all=.
+
+Stuck Projects blocks and the Agenda block (today's scheduled, deadlined, and
+time-grid items) carry no range at all. Stuck Projects stays unfiltered — and
+above Next Actions — at every range, because a stuck project is a process
+failure whose priority is beside the point; the Agenda block is likewise
+untouched by range rotation.
+
+* Rotating and selecting a range
+
+Inside an open agenda buffer, four interactive commands work the range list:
+
+- ~agile-gtd-agenda-set-range~ picks one of the five names directly via
+  completing-read.
+- ~agile-gtd-agenda-wider-range~ steps one range toward =someday=.
+- ~agile-gtd-agenda-narrower-range~ steps one range toward =today=.
+- ~agile-gtd-agenda-current-range~ returns the buffer's current range, or nil
+  outside an agenda.
+
+Rotation clamps at both ends of the list instead of wrapping, and messages
+when a keystroke has nothing to do (for example, "Already at the widest range
+(someday)"). Each rotation messages the new range and redraws the agenda
+immediately; the active range is also appended to the block header (for
+example, "Next Actions [upcoming]"), so an empty screen shows whether there is
+nothing to do or whether the range is simply narrow.
+
+Rotation is buffer-local to the open agenda: widening one view never widens
+another, and closing the agenda discards the rotation entirely. Reopening a
+command always returns to its declared range, and so does resetting it; no
+command declares =today=, so it is only ever reached by rotating to it.
+
+An agenda rotated to =today= shows its Next Actions block empty, under the
+header =Next Actions [today]=: everything inside =today= is work the day block
+above it already lists. A backlog rotated to =today= lists the projects and
+standalone actions inside =today=.
+
+Four further names are callable and work the same range list:
+
+| Name                                     | Does                                              |
+|------------------------------------------+---------------------------------------------------|
+| ~agile-gtd-agenda-show-more-priorities~  | ~agile-gtd-agenda-wider-range~                    |
+| ~agile-gtd-agenda-show-less-priorities~  | ~agile-gtd-agenda-narrower-range~                 |
+| ~agile-gtd-agenda-show-priorities~       | ~agile-gtd-agenda-set-range~                      |
+| ~agile-gtd-agenda-reset-show-priorities~ | returns every block to the range it declares      |
+
+Keybindings for any of these commands are the user's own business; this
+package installs none and leaves them to downstream configuration.
+
+* Pinned ranges for the query functions
+
+~agile-gtd-agenda-query-next-actions~ and ~agile-gtd-agenda-query-backlog~ are
+the public entry points other packages call directly, passing a tag filter
+and a range. Called without an explicit range, they resolve to a fixed range
+instead of reading any agenda's rotation state:
+
+- ~agile-gtd-agenda-query-next-actions~ resolves to =sprint=.
+- ~agile-gtd-agenda-query-backlog~ resolves to =all=.
+
+This holds regardless of what an open agenda buffer is currently rotated to,
+so an external caller gets the same answer every time.
+
+The next-actions query returns the unblocked =NEXT= and =WAIT= items in the
+range, plus every open task of any state inside =today=, blocked or not. Its
+third argument, =hide-today=, is what the agenda's Next Actions blocks pass:
+it leaves out everything inside =today=, that addition included, because the
+day block above already lists it. The test is the rank, so it covers both
+halves of the query alike, at every range.

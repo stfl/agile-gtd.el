@@ -1,0 +1,30 @@
+#+title: What the package configures
+
+What =agile-gtd-enable= and =agile-gtd-refresh= change in Org, and which
+variables control it. Back to the [[file:../README.org][README]].
+
+=agile-gtd-enable= and =agile-gtd-refresh= install the workflow into Org by
+configuring:
+
+- TODO keywords and faces
+- priority range, faces, and optional org-modern symbols
+- workflow tags
+- inbox and project capture templates
+- agenda files and refile targets
+- org-ql predicates
+- agenda commands for inbox, today, review, stuck projects, and backlog views
+- org-records-mcp view keys, computed fields, sorting and file scope, unless
+  =agile-gtd-enable-org-records-mcp= is nil; see [[file:org-records-mcp.org][Views for AI assistants (org-records-mcp)]]
+- the Org options the workflow depends on: org-edna-mode, logging into the
+  =LOGBOOK=, the archive location, org-habit, agenda behaviour and
+  inheritance, unless =agile-gtd-enable-org-settings= is nil
+
+=agile-gtd-refresh= stops there. =agile-gtd-enable= also runs the startup tag
+check (see [[file:projects.org::*Tag check at startup][Tag check at startup]]).
+
+[[file:org-settings.org][Org settings agile-gtd applies]] lists each of those options with its value and
+the reason for it, and shows how to override one or turn the step off.
+
+The exact file layout is user-configurable through variables such as
+=agile-gtd-inbox-file=, =agile-gtd-todo-file=, and =agile-gtd-projects=,
+but the semantics described in [[file:workflow.org][the workflow model]] stay the same.

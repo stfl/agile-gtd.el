@@ -1,0 +1,70 @@
+#+title: Agenda commands
+
+Every agenda command agile-gtd installs, what its blocks show, and how a
+grouped block is ordered. Back to the [[file:../README.org][README]].
+
+The package installs a set of agenda commands under =org-agenda-custom-commands=:
+
+| Key  | Name                     | Description                                     |
+|------+--------------------------+-------------------------------------------------|
+| =i=    | Inbox                    | Unprocessed inbox items grouped by creation date |
+| =a=    | Main Agenda              | Unified daily view: all contexts, priority-grouped |
+| =A=    | Agenda Weekly            | Standard week view                               |
+| =l=    | Agenda Weekly with Log   | Week view with closed-item log                   |
+| =r=    | Review                   | Prefix for review commands                       |
+| =rc=   | Close open actions       | All active NEXT/WAIT within 30 days              |
+| =rs=   | Stuck Projects           | Projects with no NEXT/WAIT child                 |
+| =rt=   | Tangling TODOs           | Actions orphaned under completed ancestors       |
+| =rS=   | SOMEDAY                  | Low-priority and deferred projects               |
+| =p=    | Private                  | Prefix for private (non-work) commands           |
+| =pp=   | Private Agenda Today     | Daily view filtered to non-work items            |
+| =pb=   | Private Backlog          | Backlog filtered to non-work                     |
+| =ps=   | Private Stuck Projects   | Stuck projects filtered to non-work              |
+| =w=    | Work                     | Prefix for work commands                         |
+| =ww=   | Work Agenda Today        | Daily view filtered to =#work= items               |
+| =wb=   | Work Backlog             | Backlog filtered to =#work=                        |
+| =ws=   | Work Stuck Projects      | Stuck projects filtered to =#work=                 |
+| =w<key>= | /Project/ Agenda        | Per-project daily view (auto-generated)          |
+
+The composite daily views (=a=, =pp=, =ww=, =w<key>=) show three blocks in order:
+1. Agenda (today's scheduled, deadlined, and time-grid items, and warnings for any deadline within two days)
+2. Stuck Projects (flat list, no grouping)
+3. Next Actions (grouped by ancestor priority)
+
+All three blocks are filtered consistently: =pp= excludes =#work= items, =ww=
+includes only =#work= items, and =w<key>= includes only items tagged with the
+project tag. =a= shows everything unfiltered. The Next Actions block leaves out
+everything inside the =today= range — any deadline within two days (the =[#A]=
+deadline window), due today, overdue, or scheduled today or earlier — and the
+day block lists all of it, showing a deadline within those two days as a
+warning. With Org's default warning periods no task is listed twice and none
+falls between the two. A deadline carrying its own warning period, such as
+=<2026-10-01 Thu -5d>=, is the exception: the day block warns of it from five
+days out while its rank keeps it in Next Actions until the last two.
+
+The backlogs (=pb=, =wb=) list projects and standalone =NEXT= / =WAIT= items,
+blocked ones included and dimmed: a backlog is what there is to plan.
+
+Which range — =today=, =sprint=, =upcoming=, =all=, or =someday= — each command's Next
+Actions and Backlog blocks open at, and how to rotate between them, is
+documented in [[file:view-ranges.org][View Ranges]].
+
+* How a grouped block is ordered
+
+Next Actions and Backlog blocks are grouped by rank, top to bottom:
+
+| Group                | Holds |
+|----------------------+-------|
+| =Today & Overdue=    | Anything due or already past its date |
+| =[#A]= .. =[#I]=     | One heading per priority band, with =Default Priority= sitting where an item carrying no cookie ranks |
+| =Scheduled=          | Work waiting on a day later than today |
+| =Tickler=            | SOMEDAY items with a =SCHEDULED= date |
+| =Someday=            | The rest of the parked work |
+
+The priorities come first because they are the work actually on offer.
+Everything below them is on screen for a different reason — a date has not
+arrived yet, or the item was set aside — and the widest range is the only one
+that shows any of it.
+
+Interactive narrowing by tag is available in any agenda buffer via
+=org-agenda-filter-by-tag= (=\= key).

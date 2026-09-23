@@ -1,0 +1,16 @@
+#+title: Changelog
+
+* 0.3.0
+
+** Breaking change: ~agile-gtd-max-priority-group~ is removed
+
+Upgrading from a release that carried ~agile-gtd-max-priority-group~: the
+defcustom and the global priority override behind it are removed, and setting
+it has no effect. A single global cutoff cannot express "this view is
+deliberately narrow, that view is deliberately wide", which is the whole point
+of per-buffer range rotation. Its interactive role — widening the sprint
+threshold on the spot — is served by ~agile-gtd-agenda-wider-range~.
+
+~agile-gtd-sprint-prio-threshold~ is untouched and sets the =sprint= cutoff;
+~agile-gtd-backlog-priority-threshold~ is likewise untouched and governs only
+the =rS= SOMEDAY review command.

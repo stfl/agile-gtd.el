@@ -1,0 +1,125 @@
+#+title: The agile-gtd workflow model
+
+What the states, tags and deferral mechanisms mean, how work is captured and
+clarified, and what metadata a heading carries. The [[file:../README.org][README]] has the
+short version.
+
+* What this package models
+
+=agile-gtd= packages a hybrid Agile + GTD workflow for Org mode.
+It treats Org headings as planning units with explicit execution semantics:
+
+- =EPIC -> PROJ -> NEXT/WAIT/TODO= is the normal hierarchy.
+- =NEXT= and =WAIT= indicates a task currently in focus (actionable)
+- =TODO= tasks are not actionable yet.
+- =NEXT= and =WAIT= can also exist without a project; these are standalone next actions.
+- =TODO= is captured input, not yet clarified or committed.
+- Priorities =A..C= are considered in the current sprint.
+- Priorities =D..E= are considered in the upcoming range.
+- No assigned priority is considered between =E= and =F=, and counts as
+  exactly the default priority (~agile-gtd-priority-default~) wherever an
+  agenda view filters by range; see [[file:view-ranges.org][View Ranges]].
+- Priorities =F..H= are the lower part of the backlog
+- Priority =I= is for background tasks that do not belong to the backlog but still relevant.
+- =SOMEDAY= tag removes an item from the active backlog.
+- =SOMEDAY= tag plus =SCHEDULED= date turns an item into a tickler that resurfaces at the given date.
+  When the tickler item resurfaces again, it shall be scheduled or assigned a priority accordingly.
+- Tasks with a =DEADLINE= within 7 days are considered in the current sprint.
+- Tasks with a =DEADLINE= within 14 days are considered within the upcoming range.
+- Tasks with a =DEADLINE= after 14 days are considered below the default priority
+
+Headings without a TODO keyword are structural headings only.
+
+* States
+
+| Keyword | Meaning                                                     |
+|---------+-------------------------------------------------------------|
+| TODO    | Captured input that is not actionable yet.                  |
+| NEXT    | Concrete next action that is actionable now.                |
+| WAIT    | Open loop waiting on a person, event, or dependency.        |
+| PROJ    | Multi-step outcome; should usually own NEXT/WAIT children.  |
+| EPIC    | Larger body of work grouping related projects.              |
+| IDEA    | Not committed work; kept out of the active execution flow.  |
+| DONE    | Completed successfully.                                     |
+| KILL    | Explicitly cancelled; kept for history instead of deleting. |
+
+A project is healthy when it has at least one child in =NEXT= or =WAIT=.
+A project with no such child is stuck.
+
+* Hierarchy and execution
+
+The workflow is built around a simple progression:
+
+#+begin_example
+EPIC
+  PROJ
+    NEXT
+    WAIT
+    TODO
+#+end_example
+
+A =NEXT= or =WAIT= without a =PROJ= ancestor is still valid and is treated as a
+standalone next action.
+
+Repeating tasks are modeled with a scheduled repeat timestamp and
+=:REPEAT_TO_STATE: NEXT= so that marking them =DONE= returns them to =NEXT=.
+
+* Tags
+
+The workflow uses tags as control signals rather than decoration.
+
+| Tag        | Meaning |
+|------------+---------|
+| SOMEDAY    | Deferred work, hidden from the active backlog |
+| HABIT      | Recurring habit or routine |
+| LASTMILE   | Final-stretch item that deserves extra visibility |
+| #work      | Work item |
+| #personal  | Personal item |
+| @context   | GTD context such as a place, person, or tool |
+
+Domain- or client-specific tags can be layered on top via =agile-gtd-projects=
+(see [[file:projects.org][Projects]]).
+When files use =#+filetags=, those tags classify every heading in the file.
+
+* Deferred work
+
+There are two important deferred states:
+
+- =SOMEDAY=: the item is intentionally parked and should not clutter active views.
+- Tickler: the item has the =SOMEDAY= tag and a future =SCHEDULED= date. It stays
+  hidden until that date arrives.
+
+Processing a tickler usually means removing =SOMEDAY=, assigning a real
+priority, and optionally adding a deadline.
+
+* Inbox and capture semantics
+
+New input starts in the inbox as =TODO=. Clarification happens later:
+
+- turn it into =NEXT= when it is actionable now;
+- turn it into =PROJ= when it needs multiple steps;
+- turn it into =WAIT= when the next move belongs to someone else;
+- tag it =SOMEDAY= when it is deliberately deferred;
+- keep it as =TODO= when it belongs to a =PROJ= but is not actionable yet;
+
+- refile it to the corresponding position in the system;
+
+The package includes capture templates for inbox items, projects, scheduled
+actions, deadline-driven actions, and protocol captures.
+
+* Metadata and history
+
+The workflow expects standard Org metadata to carry process state:
+
+| Property          | Meaning                                   |
+|-------------------+-------------------------------------------|
+| =ID=              | Stable identity                           |
+| =CREATED=         | Capture or creation time                  |
+| =TRIGGER=         | org-edna automation for follow-up actions |
+| =BLOCKER=         | org-edna dependency                       |
+| =REPEAT_TO_STATE= | Repeat target, usually NEXT               |
+| =Effort=          | Estimate, typically in work files         |
+
+The LOGBOOK keeps the audit trail: state changes, clock entries, and notes.
+In work contexts, the same tree can also be used with =org-clock= and effort
+estimates for time tracking and reporting.

@@ -1,710 +1,190 @@
 #+title: agile-gtd
 
-* What this package models
+Sprint planning on top of GTD, in Org mode.
 
-=agile-gtd= packages a hybrid Agile + GTD workflow for Org mode.
-It treats Org headings as planning units with explicit execution semantics:
+GTD is good at getting everything out of your head into a trusted list. It
+says little about choosing from that list once it holds four hundred open
+items. Scrum is good at choosing: a ranked backlog, a sprint you commit to,
+priorities set on whole pieces of work. It assumes someone grooms the backlog
+every week. =agile-gtd= combines the two, so a personal task list sorts itself
+the way a well-kept backlog would.
 
-- =EPIC -> PROJ -> NEXT/WAIT/TODO= is the normal hierarchy.
-- =NEXT= and =WAIT= indicates a task currently in focus (actionable)
-- =TODO= tasks are not actionable yet.
-- =NEXT= and =WAIT= can also exist without a project; these are standalone next actions.
-- =TODO= is captured input, not yet clarified or committed.
-- Priorities =A..C= are considered in the current sprint.
-- Priorities =D..E= are considered in the upcoming range.
-- No assigned priority is considered between =E= and =F=, and counts as
-  exactly the default priority (~agile-gtd-priority-default~) wherever an
-  agenda view filters by range; see [[*View Ranges][View Ranges]].
-- Priorities =F..H= are the lower part of the backlog
-- Priority =I= is for background tasks that do not belong to the backlog but still relevant.
-- =SOMEDAY= tag removes an item from the active backlog.
-- =SOMEDAY= tag plus =SCHEDULED= date turns an item into a tickler that resurfaces at the given date.
-  When the tickler item resurfaces again, it shall be scheduled or assigned a priority accordingly.
-- Tasks with a =DEADLINE= within 7 days are considered in the current sprint.
-- Tasks with a =DEADLINE= within 14 days are considered within the upcoming range.
-- Tasks with a =DEADLINE= after 14 days are considered below the default priority
+* The idea
 
-Headings without a TODO keyword are structural headings only.
+You will have far more open tasks than you will ever do, and that is fine. In
+any given week only a small part of them matters. The system's job is to show
+you that part and keep the rest out of sight without losing any of it.
 
-* States
+| From GTD                                          | From Agile                                        |
+|---------------------------------------------------+---------------------------------------------------|
+| Capture everything into an inbox, clarify later   | One backlog, sorted most important first          |
+| Next actions: the physical step you can do now    | A sprint: the slice of the backlog you commit to  |
+| Projects: any outcome that needs several steps    | Priority is set on the project, not on each step  |
+| Someday/maybe and the tickler for parked work     | Views cut the backlog at a depth you choose       |
+| The weekly review catches stuck projects          | Deadlines move work up the backlog as they near   |
 
-| Keyword | Meaning                                                     |
-|---------+-------------------------------------------------------------|
-| TODO    | Captured input that is not actionable yet.                  |
-| NEXT    | Concrete next action that is actionable now.                |
-| WAIT    | Open loop waiting on a person, event, or dependency.        |
-| PROJ    | Multi-step outcome; should usually own NEXT/WAIT children.  |
-| EPIC    | Larger body of work grouping related projects.              |
-| IDEA    | Not committed work; kept out of the active execution flow.  |
-| DONE    | Completed successfully.                                     |
-| KILL    | Explicitly cancelled; kept for history instead of deleting. |
+* Two ideas Org does not have
 
-A project is healthy when it has at least one child in =NEXT= or =WAIT=.
-A project with no such child is stuck.
+*Parent priority.* You prioritise the project, and its next actions follow.
+Move a =PROJ= into the sprint and every =NEXT= inside it appears in the sprint
+too. No next action gets left behind because nobody moved it into the sprint.
+A single step can still be raised above its project when it is more
+urgent than the rest; it is never pushed below it.
 
-* Hierarchy and execution
+*Rank.* Every task gets one number, computed from four things: its own
+priority, its project's priority, how close its deadline is, and whether a
+scheduled date has come due. Views sort by rank and cut at a rank, so filtering
+and ordering always agree. A date can only move a task /up/: an unprioritised
+task climbs the backlog as its deadline approaches, and a deadline months away
+leaves it where its priority put it.
 
-The workflow is built around a simple progression:
+* How you work with it
+
+Priorities run from =A= to =I=. Five views, called ranges, cut the backlog at
+increasing depth:
 
 #+begin_example
-EPIC
-  PROJ
-    NEXT
-    WAIT
-    TODO
+today  ->  sprint  ->  upcoming  ->  all  ->  someday
+ due or    A..C       down to E,    every     plus parked
+ overdue              and anything  priority  SOMEDAY work
+                      unprioritised
 #+end_example
 
-A =NEXT= or =WAIT= without a =PROJ= ancestor is still valid and is treated as a
-standalone next action.
+- *Commit to work* by giving its project priority =A=, =B= or =C=. The project's
+  next actions now show in the sprint.
+- *Leave it on the list* without a priority. It shows in =upcoming=, the
+  everyday working view, and rises when its deadline gets close.
+- *Stop seeing it every day* by demoting it below =E=. It stays in the backlog
+  (=all=) and out of your daily view.
+- *Park it* with the =SOMEDAY= tag. It leaves every range but =someday=.
+- *Park it until a date* with =SOMEDAY= and a =SCHEDULED= date. That makes it a
+  tickler, and it comes back into view on that day.
 
-Repeating tasks are modeled with a scheduled repeat timestamp and
-=:REPEAT_TO_STATE: NEXT= so that marking them =DONE= returns them to =NEXT=.
+Inside an open agenda you widen or narrow the range on the spot, so one command
+serves both "what do I do now" and "what is on my plate at all".
 
-* Priorities
+* What it looks like
 
-Priorities run from =A= (highest) to =I= (lowest).
-The default backlog priority is sorted between =E= and =F=.
+A small =todo.org=; only the tax return has a date:
 
-| Priority    | Meaning                                   |
-|-------------+-------------------------------------------|
-| A..C        | Current sprint                            |
-| D..E        | Near-term                                 |
-| no priority | Default backlog                           |
-| F..H        | Low-priority backlog                      |
-| I           | background tasks, kept out of the backlog |
-
-Priority is not only local:
-
-- a child action inherits urgency from its parent project for sorting and grouping;
-- a project priority can pull an unprioritized or lower-priority child upward in
-  backlog views;
-- by default, low-end priorities are treated as deep backlog and are hidden from
-  normal today and sprint views.
-
-* Deadline and Scheduled Priorities
-
-The position on the backlog also depends on the =DEADLINE= and =SCHEDULED= dates
-of a task.  Both are mapped to an effective priority using the same table:
-
-| Days    | Effective priority |
-|---------+--------------------|
-| <0      | overdue            |
-| =0      | today              |
-| <=2     | A                  |
-| <=5     | B                  |
-| <=7     | C                  |
-| <=11    | D                  |
-| <=14    | E                  |
-| <=21    | F                  |
-| <=30    | G                  |
-| <=60    | H                  |
-
-A date can only ever move an item /up/.  A =DEADLINE= near enough to fall in
-the table pulls the item to that effective priority; one further out says
-nothing, and leaves the item exactly where its own or its parent's priority
-already put it.  An unprioritised task due in three months is still default
-backlog work, not the lowest thing on the list.
-
-=SCHEDULED= counts only once it is today or overdue (delta ≤ 0).  A future
-=SCHEDULED= date is not a rank at all: the work is spoken for until that day
-comes.  Items scheduled ahead are excluded from the next-action and backlog
-views outright, and reappear only at the widest range, where they collect
-under their own =Scheduled= heading.
-
-* Tags
-
-The workflow uses tags as control signals rather than decoration.
-
-| Tag        | Meaning |
-|------------+---------|
-| SOMEDAY    | Deferred work, hidden from the active backlog |
-| HABIT      | Recurring habit or routine |
-| LASTMILE   | Final-stretch item that deserves extra visibility |
-| #work      | Work item |
-| #personal  | Personal item |
-| @context   | GTD context such as a place, person, or tool |
-
-Domain- or client-specific tags can be layered on top via =agile-gtd-projects=
-(see [[*Projects][Projects]]).
-When files use =#+filetags=, those tags classify every heading in the file.
-
-* Deferred work
-
-There are two important deferred states:
-
-- =SOMEDAY=: the item is intentionally parked and should not clutter active views.
-- Tickler: the item has the =SOMEDAY= tag and a future =SCHEDULED= date. It stays
-  hidden until that date arrives.
-
-Processing a tickler usually means removing =SOMEDAY=, assigning a real
-priority, and optionally adding a deadline.
-
-* View Ranges
-
-Agenda commands filter their Next Actions and Backlog blocks through one of
-five named ranges, ordered narrowest to widest: =today -> sprint -> upcoming ->
-all -> someday=. Each range's cutoff is a rank. =today= closes at rank 0; every
-other range closes at the band of an existing priority defcustom, never at a
-hard-coded letter:
-
-| Range      | Cutoff                            | Shows                                                                                                                    |
-|------------+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------|
-| =today=    | rank 0                            | Items with any deadline within two days (the =[#A]= deadline window), due today, overdue, or scheduled today or earlier. |
-| =sprint=   | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                                                           |
-| =upcoming= | ~agile-gtd-priority-default~      | The above, plus everything down to the default priority, including every item with no priority cookie.                   |
-| =all=      | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded.                                  |
-| =someday=  | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                                                        |
-
-*** What a cutoff actually tests
-
-A range admits an item when its /rank/ — the one number
-~agile-gtd--item-rank~ computes, and the same one the priority groups are
-built from — is at or below the range's cutoff: rank 0 for =today=, the
-cutoff priority's band for the others.  Filtering and grouping read the same
-boundary, so a range can never show a heading for a priority it stops short
-of.  Everything =today= admits lands in the =Today & Overdue= group, which
-closes at the same rank 0.
-
-Rank folds four claims on urgency into that number, and each of them alone is
-enough to bring an item into a range: its own priority cookie, its parent's,
-an approaching deadline, and a schedule that has come due.
-
-Two consequences are worth stating plainly.
-
-A missing priority cookie counts as exactly ~agile-gtd-priority-default~ (=E=
-by default; see [[*Priorities][Priorities]]).  The =upcoming= range and every
-wider range therefore include every unprioritised item that has no other
-reason to rank lower; =sprint= does not, since its cutoff sits above the
-default.
-
-A cookie on the parent is such a reason.  A bare next action under a =[#G]=
-project is =G= work and leaves =upcoming= at exactly the cutoff a =[#G]= cookie
-of its own would take it out at.  Inheritance decides where an item is
-grouped, so it must decide whether the item is admitted too.
-
-** Which command opens at which range
-
-Each agenda command declares the range its Next Actions and Backlog blocks
-open at (see [[*Agenda commands][Agenda commands]] for the full command list):
-
-| Key      | Name                  | Declared range |
-|----------+-----------------------+----------------|
-| =a=      | Main Agenda           | =sprint=       |
-| =pp=     | Private Agenda Today  | =sprint=       |
-| =ww=     | Work Agenda Today     | =upcoming=     |
-| =w<key>= | Per-project agenda    | =upcoming=     |
-| =pb=     | Private Backlog       | =all=          |
-| =wb=     | Work Backlog          | =all=          |
-
-A command being a backlog decides its range, not the prefix it sits under:
-=pb= and =wb= sit under different prefixes but are both backlogs, so both
-open at =all=.
-
-Stuck Projects blocks and the Agenda block (today's scheduled, deadlined, and
-time-grid items) carry no range at all. Stuck Projects stays unfiltered — and
-above Next Actions — at every range, because a stuck project is a process
-failure whose priority is beside the point; the Agenda block is likewise
-untouched by range rotation.
-
-** Rotating and selecting a range
-
-Inside an open agenda buffer, four interactive commands work the range list:
-
-- ~agile-gtd-agenda-set-range~ picks one of the five names directly via
-  completing-read.
-- ~agile-gtd-agenda-wider-range~ steps one range toward =someday=.
-- ~agile-gtd-agenda-narrower-range~ steps one range toward =today=.
-- ~agile-gtd-agenda-current-range~ returns the buffer's current range, or nil
-  outside an agenda.
-
-Rotation clamps at both ends of the list instead of wrapping, and messages
-when a keystroke has nothing to do (for example, "Already at the widest range
-(someday)"). Each rotation messages the new range and redraws the agenda
-immediately; the active range is also appended to the block header (for
-example, "Next Actions [upcoming]"), so an empty screen shows whether there is
-nothing to do or whether the range is simply narrow.
-
-Rotation is buffer-local to the open agenda: widening one view never widens
-another, and closing the agenda discards the rotation entirely. Reopening a
-command always returns to its declared range, and so does resetting it; no
-command declares =today=, so it is only ever reached by rotating to it.
-
-An agenda rotated to =today= shows its Next Actions block empty, under the
-header =Next Actions [today]=: everything inside =today= is work the day block
-above it already lists. A backlog rotated to =today= lists the projects and
-standalone actions inside =today=.
-
-Four further names are callable and work the same range list:
-
-| Name                                     | Does                                              |
-|------------------------------------------+---------------------------------------------------|
-| ~agile-gtd-agenda-show-more-priorities~  | ~agile-gtd-agenda-wider-range~                    |
-| ~agile-gtd-agenda-show-less-priorities~  | ~agile-gtd-agenda-narrower-range~                 |
-| ~agile-gtd-agenda-show-priorities~       | ~agile-gtd-agenda-set-range~                      |
-| ~agile-gtd-agenda-reset-show-priorities~ | returns every block to the range it declares      |
-
-Keybindings for any of these commands are the user's own business; this
-package installs none and leaves them to downstream configuration.
-
-** Pinned ranges for the query functions
-
-~agile-gtd-agenda-query-next-actions~ and ~agile-gtd-agenda-query-backlog~ are
-the public entry points other packages call directly, passing a tag filter
-and a range. Called without an explicit range, they resolve to a fixed range
-instead of reading any agenda's rotation state:
-
-- ~agile-gtd-agenda-query-next-actions~ resolves to =sprint=.
-- ~agile-gtd-agenda-query-backlog~ resolves to =all=.
-
-This holds regardless of what an open agenda buffer is currently rotated to,
-so an external caller gets the same answer every time.
-
-The next-actions query returns the unblocked =NEXT= and =WAIT= items in the
-range, plus every open task of any state inside =today=, blocked or not. Its
-third argument, =hide-today=, is what the agenda's Next Actions blocks pass:
-it leaves out everything inside =today=, that addition included, because the
-day block above already lists it. The test is the rank, so it covers both
-halves of the query alike, at every range.
-
-** Breaking change: ~agile-gtd-max-priority-group~ is removed
-
-Upgrading from a release that carried ~agile-gtd-max-priority-group~: the
-defcustom and the global priority override behind it are removed, and setting
-it has no effect. A single global cutoff cannot express "this view is
-deliberately narrow, that view is deliberately wide", which is the whole point
-of per-buffer range rotation. Its interactive role — widening the sprint
-threshold on the spot — is served by ~agile-gtd-agenda-wider-range~.
-
-~agile-gtd-sprint-prio-threshold~ is untouched and sets the =sprint= cutoff;
-~agile-gtd-backlog-priority-threshold~ is likewise untouched and governs only
-the =rS= SOMEDAY review command.
-
-* Projects
-
-Work items all carry =#work=, but different clients, teams or engagements are
-told apart by a tag of their own. =agile-gtd-projects= declares them once; the
-package then auto-generates a per-project agenda command, adds the tag to
-=org-tag-alist=, and puts the project's file on =org-agenda-files=.
-
-Each entry is a plist:
-
-| Key     | Required | Description                                                         |
-|---------+----------+---------------------------------------------------------------------|
-| =:tag=  | yes      | Non-empty Org tag string; the project's identity                    |
-| =:name= | no       | Display name; defaults to the tag                                   |
-| =:file= | no       | Org file, resolved against =org-directory=; defaults to =<tag>.org= |
-| =:key=  | no       | Single character for the agenda command and the tag-alist entry     |
-
-The tag is what a project *is*. Everything that selects a project's work — its
-agenda command, a tag filter typed in an agenda buffer, the clocked-time
-reports of a clocking package reading the same registry — matches on the tag,
-so an entry belongs to its project wherever it sits and whatever its file is
-called. Changing a =:name= or moving a =:file= leaves the project's history
-where it is; retagging an entry is what moves work from one project to another.
-A relative =:file= is resolved against =org-directory= and nowhere else, so the
-same registry means the same files whatever buffer is current when it is read.
-
-A project without a =:key= gets no agenda keybinding and no tag-alist entry, so
-it can be registered purely so that its files and its history stay in reach. A
-=:key= that is not a character costs the project only those two things; the
-project itself stays usable.
-
-Keys beyond these four are tolerated and ignored, so one registry can carry
-another package's extensions without this package knowing about them.
-
-An entry that is not a plist, one whose =:tag= is not a non-empty string, and
-one repeating a =:tag= an earlier entry already claims are each skipped with a
-warning naming the entry and showing the shape that would have been accepted.
-The warning comes once per offending entry — the registry is read on every
-agenda build, and a warning repeated on each of those buries the one that
-matters — and starts over when the registry is edited. Nothing raises: one
-mistyped line costs its own project, never the session. Where two entries claim
-one tag the first wins. Two projects sharing a file, or a display name, are
-permitted.
-
-** Configuration example
-
-#+begin_src emacs-lisp
-(setopt agile-gtd-projects
-        '((:tag "acme"   :name "ACME Corp"  :key ?a)
-          (:tag "globex" :name "Globex Inc" :key ?g)))
+#+begin_src org
+,* PROJ [#B] Launch the new website
+,** NEXT Write the landing page copy
+,** NEXT Pick a hosting provider
+,* PROJ Renovate the bathroom
+,** NEXT Get three quotes from plumbers
+,* NEXT File the tax return
+DEADLINE: <2026-09-27 Sun>
+,* PROJ [#G] Learn Rust
+,** NEXT Read chapter 4 of the book
+,* NEXT Try the new ramen place                                    :SOMEDAY:
 #+end_src
 
-This generates:
+The Main Agenda (=a=) at the =all= range, captured on 23 September 2026:
 
-- =wa= — "ACME Corp Agenda" (today + stuck projects + next actions filtered to =acme= tag)
-- =wg= — "Globex Inc Agenda" (same, filtered to =globex= tag)
-- Tag-alist entries: =acme= bound to =a=, =globex= bound to =g=
+#+begin_example
+Next Actions [all]
 
-Project tags are expected to be applied via =#+filetags= at the file level or
-inherited from a parent heading.
+ [#B] Priority B
+  NEXT Write the landing page copy
+  NEXT Pick a hosting provider
+  NEXT File the tax return  due in 4d
 
-** Project records
+ Default Priority
+  NEXT Get three quotes from plumbers
 
-=agile-gtd-project-records= returns the registry with every default already
-applied: one plist per entry, carrying =:tag=, =:name=, =:file= and =:key=. All
-three of tag, name and file can differ for one project, and consumers want
-different ones of them — the tag matches entries, the name labels a prompt, the
-file names what to scan — so the accessor keeps the defaulting rules in one
-place rather than in each consumer. A declared file is carried as written,
-relative names included, and expanded against =org-directory= where it is
-actually used. =agile-gtd-project-files= is the file column of those same
-records. Both read through the same funnel, so an entry skipped with a warning
-is absent from every one of them.
+ [#G] Priority G
+  NEXT Read chapter 4 of the book
+#+end_example
 
-** One registry for clocking too
+- The two website actions carry no priority of their own; they sit at =B=
+  because their project does.
+- The tax return has no priority either. Its deadline four days out lifts it to
+  =B=.
+- At =sprint= the list stops after the =[#B]= group. At =upcoming= it stops
+  after =Default Priority=, so Rust stays out of the daily view.
+- The ramen place appears only at =someday=, under its own =Someday= heading.
 
-[[https://github.com/stfl/org-clock-projects][org-clock-projects]] reads a registry in this same layout: the same =:tag=,
-=:name= and =:file=, the same defaults for the two that follow from the tag,
-the same tolerance for keys it does not know, and the same skip-and-warn
-treatment of an entry it cannot use. =:key= is this package's own extension to
-that layout — the clocking package tolerates it on input and drops it from its
-own records, which is exactly what the shared contract promises an extension.
-Point that package's project function at this package's accessor to keep one
-registry rather than two:
+* Quickstart
 
-#+begin_src emacs-lisp
-(setq org-clock-projects-projects-function #'agile-gtd-project-records)
-#+end_src
-
-Neither package requires the other, and neither reads the other's variables.
-The layout is shared by convention and held in place by a contract test in each
-suite: the same declared-to-normalised table, asserted over =:tag=, =:name= and
-=:file= on both sides, with =:key= the one column only this side has.
-
-** Tag check at startup
-
-=agile-gtd-enable= runs =agile-gtd-check-project-tags=, which warns about any
-project file that does not declare its project tag. Only a file-level tag is
-inherited by every entry in the file, which is what tag-based selection of
-clocked time relies on; a tag worn by individual headlines leaves the rest of
-the file invisible to it. The check covers the project's own file and the
-archives Org resolves from =org-archive-location=, because archiving records a
-subtree's inherited tags in its =ARCHIVE_ITAGS= property rather than as real
-tags, so an archive needs its own =#+filetags= line.
-
-The check never writes: Org has no built-in for setting a file tag, and the
-repair is one you want to make deliberately. It is skipped in batch, where a
-warning has no reader, and =M-x agile-gtd-check-project-tags= runs it on
-demand.
-
-* Agenda commands
-
-The package installs a set of agenda commands under =org-agenda-custom-commands=:
-
-| Key  | Name                     | Description                                     |
-|------+--------------------------+-------------------------------------------------|
-| =i=    | Inbox                    | Unprocessed inbox items grouped by creation date |
-| =a=    | Main Agenda              | Unified daily view: all contexts, priority-grouped |
-| =A=    | Agenda Weekly            | Standard week view                               |
-| =l=    | Agenda Weekly with Log   | Week view with closed-item log                   |
-| =r=    | Review                   | Prefix for review commands                       |
-| =rc=   | Close open actions       | All active NEXT/WAIT within 30 days              |
-| =rs=   | Stuck Projects           | Projects with no NEXT/WAIT child                 |
-| =rt=   | Tangling TODOs           | Actions orphaned under completed ancestors       |
-| =rS=   | SOMEDAY                  | Low-priority and deferred projects               |
-| =p=    | Private                  | Prefix for private (non-work) commands           |
-| =pp=   | Private Agenda Today     | Daily view filtered to non-work items            |
-| =pb=   | Private Backlog          | Backlog filtered to non-work                     |
-| =ps=   | Private Stuck Projects   | Stuck projects filtered to non-work              |
-| =w=    | Work                     | Prefix for work commands                         |
-| =ww=   | Work Agenda Today        | Daily view filtered to =#work= items               |
-| =wb=   | Work Backlog             | Backlog filtered to =#work=                        |
-| =ws=   | Work Stuck Projects      | Stuck projects filtered to =#work=                 |
-| =w<key>= | /Project/ Agenda        | Per-project daily view (auto-generated)          |
-
-The composite daily views (=a=, =pp=, =ww=, =w<key>=) show three blocks in order:
-1. Agenda (today's scheduled, deadlined, and time-grid items, and warnings for any deadline within two days)
-2. Stuck Projects (flat list, no grouping)
-3. Next Actions (grouped by ancestor priority)
-
-All three blocks are filtered consistently: =pp= excludes =#work= items, =ww=
-includes only =#work= items, and =w<key>= includes only items tagged with the
-project tag. =a= shows everything unfiltered. The Next Actions block leaves out
-everything inside the =today= range — any deadline within two days (the =[#A]=
-deadline window), due today, overdue, or scheduled today or earlier — and the
-day block lists all of it, showing a deadline within those two days as a
-warning. With Org's default warning periods no task is listed twice and none
-falls between the two. A deadline carrying its own warning period, such as
-=<2026-10-01 Thu -5d>=, is the exception: the day block warns of it from five
-days out while its rank keeps it in Next Actions until the last two.
-
-The backlogs (=pb=, =wb=) list projects and standalone =NEXT= / =WAIT= items,
-blocked ones included and dimmed: a backlog is what there is to plan.
-
-Which range — =today=, =sprint=, =upcoming=, =all=, or =someday= — each command's Next
-Actions and Backlog blocks open at, and how to rotate between them, is
-documented in [[*View Ranges][View Ranges]].
-
-** How a grouped block is ordered
-
-Next Actions and Backlog blocks are grouped by rank, top to bottom:
-
-| Group                | Holds |
-|----------------------+-------|
-| =Today & Overdue=    | Anything due or already past its date |
-| =[#A]= .. =[#I]=     | One heading per priority band, with =Default Priority= sitting where an item carrying no cookie ranks |
-| =Scheduled=          | Work waiting on a day later than today |
-| =Tickler=            | SOMEDAY items with a =SCHEDULED= date |
-| =Someday=            | The rest of the parked work |
-
-The priorities come first because they are the work actually on offer.
-Everything below them is on screen for a different reason — a date has not
-arrived yet, or the item was set aside — and the widest range is the only one
-that shows any of it.
-
-Interactive narrowing by tag is available in any agenda buffer via
-=org-agenda-filter-by-tag= (=\= key).
-
-* Views for AI assistants (org-records-mcp)
-
-=agile-gtd= depends on [[https://github.com/stfl/org-records-mcp][org-records-mcp]], which serves Org files to MCP clients such as
-AI assistants. Every =agile-gtd-refresh= turns the agenda's lists into org-records-mcp
-/view keys/, so an assistant asks for =private-next= and gets the Private
-Agenda's next actions, sorted by rank. The keys come from the same area table
-as the agenda commands, so a key and the agenda block it mirrors cannot drift
-apart.
-
-** Key grammar
-
-A key is =[<area>-]<view>[-<range>]=, and it is the whole question: a key
-takes no filter and no range parameter, and org-records-mcp refuses both, as it refuses
-an unknown key with the names that exist.
-
-- /area/: omitted for everything, =private=, =work=, or the tag of any project
-  in =agile-gtd-projects=, with or without a =:key=.
-- /view/: =next=, =backlog= or =stuck=. =inbox= and =tangling= exist once and
-  take neither area nor range.
-- /range/: =today=, =sprint=, =upcoming=, =all= or =someday= (see [[*View Ranges][View Ranges]]),
-  optional on =next= and =backlog=. Without one, a key runs where the agenda
-  opens: =next= at =sprint= for everything and =private=, at =upcoming= for
-  =work= and every project; =backlog= at =all=.
-
-Every area gets thirteen keys: =next= and =backlog= at each range and without
-one, and =stuck=. With three projects registered — say =alpha=, =beta= and
-=gamma= — that is six areas and 80 keys:
-
-| Key                   | Answers                                                        |
-|-----------------------+----------------------------------------------------------------|
-| =inbox=               | what has not been processed                                    |
-| =next=                | what to work on now: the sprint across every area              |
-| =next-today=          | everything inside =today=, in any open state, blocked or not   |
-| =private-next=        | the private next actions, at =sprint=                          |
-| =work-next=           | the work next actions, at =upcoming=                           |
-| =alpha-next=          | one project's next actions, at =upcoming=                      |
-| =alpha-next-today=    | what is due today in one project                               |
-| =work-backlog=        | the work backlog at every priority, blocked items included     |
-| =beta-backlog-sprint= | the high-priority part of one project's backlog                |
-| =backlog-someday=     | the whole backlog with SOMEDAY items, ticklers and future work |
-| =work-stuck=          | work projects without a next action, for the weekly review     |
-| =tangling=            | open leftovers under finished parents                          |
-
-** What each view holds
-
-- =next=: unblocked =NEXT= / =WAIT= items in the range, plus every open task of
-  any state that is inside =today=, blocked or not, so a plain =TODO= or a
-  project due today is never out of an assistant's sight. The agenda's Next
-  Actions blocks leave that addition to the day block.
-- =backlog=: projects and standalone =NEXT= / =WAIT= items in the range,
-  blocked ones included, habits left out. Outside =someday=, SOMEDAY items,
-  ticklers and work scheduled after today are left out.
-- =stuck=: projects with no =NEXT= / =WAIT= child, as in the Stuck Projects
-  block.
-- =inbox=: open items carrying one of =agile-gtd-inbox-tags=.
-- =tangling=: open items under a finished ancestor.
-
-Every result comes most urgent first, by rank, and each node carries three
-computed fields: =rank=, =parent-priority= (the parent's priority as a
-character code, 65 for =A=) and =blocked= (true or false, org-edna aware).
-
-** What agile-gtd sets in org-records-mcp
-
-On every refresh, unless =agile-gtd-enable-org-records-mcp= is nil:
-
-| Variable                          | Set to                                                  |
-|-----------------------------------+---------------------------------------------------------|
-| =org-records-mcp-views=                   | the keys, merged by name; views under other names stay  |
-| =org-records-mcp-computed-fields=         | =rank=, =parent-priority= and =blocked=, merged by name |
-| =org-records-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator            |
-| =org-records-mcp-view-catalogue-function= | the key grammar, in place of one line per key           |
-| =org-records-mcp-allowed-files=           | nil, so views run over =org-agenda-files=               |
-| =org-records-mcp-file-scope-override=     | t, so a call may name any Org file                      |
-
-A key belonging to a project that left the registry goes with it. With the
-flag off, agile-gtd leaves every org-records-mcp variable as it is.
-
-** Setting up org-records-mcp
-
-=agile-gtd= configures what org-records-mcp serves; you configure how it runs. Your
-configuration installs the two stdio shims an MCP client launches and starts
-the server. =agile-gtd= never starts it.
-
-[[https://github.com/stfl/org-records-mcp][org-records-mcp]] is not on MELPA; install it by recipe from its =main= branch,
-for example with straight. MELPA's =org-mcp=, which it grew out of, has no
-views and does not work with agile-gtd.
-=(:host github :repo "stfl/org-records-mcp" :branch "main" :files (:defaults "org-records-mcp-stdio.sh"))=.
+Put your tasks in =todo.org= and =inbox.org= under =org-directory=, then:
 
 #+begin_src emacs-lisp
 (use-package agile-gtd
   :after org
   :config
-  (setopt agile-gtd-projects '((:tag "alpha" :key ?a)
-                               (:tag "beta")
-                               (:tag "gamma")))
   (agile-gtd-enable))
-
-(use-package mcp-server-lib
-  ;; The shim lands in `user-emacs-directory' unless you set
-  ;; `mcp-server-lib-install-directory', e.g. to "~/.emacs.d/bin/".
-  :config
-  (require 'mcp-server-lib-commands)
-  (unless (file-exists-p (mcp-server-lib-installed-script-path))
-    (mcp-server-lib-install)))
-
-(use-package org-records-mcp
-  ;; After agile-gtd, so the views exist before the first call.
-  :after (org agile-gtd mcp-server-lib)
-  :config
-  (unless (file-exists-p (org-records-mcp--installed-script-path))
-    (org-records-mcp-install))
-  (unless mcp-server-lib--running
-    (mcp-server-lib-start)))
 #+end_src
 
-Everything else org-records-mcp needs for this workflow comes from =agile-gtd-enable=:
-the views, their sort order, the computed fields, the key grammar in the tool
-description, =org-records-mcp-allowed-files= set to nil and
-=org-records-mcp-file-scope-override= set to t (see the table above). A value you set
-for any of these yourself is replaced on the next refresh. To keep your own org-records-mcp
-configuration instead, turn that off before =agile-gtd-enable= runs:
+Run =M-x org-agenda=, then =a= for the Main Agenda, =i= for the inbox or =rs=
+for stuck projects. =agile-gtd-agenda-wider-range= and =agile-gtd-agenda-narrower-range=
+change the range of the open agenda; bind them to keys of your choice.
+
+To split work by client or team, register a tag per project:
 
 #+begin_src emacs-lisp
-(setopt agile-gtd-enable-org-records-mcp nil)
+(setopt agile-gtd-projects '((:tag "alpha" :key ?a)
+                             (:tag "beta")))
 #+end_src
 
-org-records-mcp resolves a key on every call, so the keys a refresh adds, such as those
-of a project added to the registry, work at once. The key grammar in the =org-view=
-tool description is written when a client connects, and is rewritten once
-every client has disconnected and one connects again.
+=alpha= then gets its own agenda command, =wa=.
 
-* Derived concepts
+* Install
 
-The package exposes org-ql predicates for the workflow's core concepts:
+agile-gtd needs Emacs 30.2 or later; CI runs the tests on Emacs 30.2 and 31.1.
+It is not on MELPA. It depends on org-ql, org-super-agenda, org-edna and
+org-modern from MELPA, and on [[https://github.com/stfl/org-records-mcp][org-records-mcp]], which is not on MELPA either.
+MELPA's =org-mcp= is a different package and does not work here.
 
-| Predicate                   | Meaning                                                                                                                                        |
-|-----------------------------+------------------------------------------------------------------------------------------------------------------------------------------------|
-| =agile-gtd-stuck-proj=      | project with no NEXT/WAIT child                                                                                                                |
-| =agile-gtd-standalone-next= | NEXT/WAIT without a project ancestor                                                                                                           |
-| =agile-gtd-tickler=         | deferred item with SOMEDAY + SCHEDULED                                                                                                         |
-| =agile-gtd-tickler-proj=    | project wholly parked in the tickler                                                                                                           |
-| =agile-gtd-someday=         | deferred item                                                                                                                                  |
-| =agile-gtd-habit=           | habit by tag or Org habit style                                                                                                                |
-| =agile-gtd-tangling=        | task left under a completed ancestor                                                                                                           |
-| =agile-gtd-work=            | any work item                                                                                                                                  |
-| =agile-gtd-private=         | non-work item                                                                                                                                  |
-| =agile-gtd-blocked=         | task with an unsatisfied org-edna BLOCKER dependency                                                                                           |
-| =agile-gtd-within-range=    | item ranking inside a range, such as =(agile-gtd-within-range today)=, or at or above a priority's band, such as =(agile-gtd-within-range ?C)= |
+With the built-in =package-vc= (Emacs 30):
 
-These predicates drive agenda commands and review views.
+#+begin_src emacs-lisp
+(use-package org-records-mcp
+  :vc (:url "https://github.com/stfl/org-records-mcp" :branch "main"))
 
-* Inbox and capture semantics
+(use-package agile-gtd
+  :vc (:url "https://github.com/stfl/agile-gtd")
+  :after org
+  :config
+  (agile-gtd-enable))
+#+end_src
 
-New input starts in the inbox as =TODO=. Clarification happens later:
+With straight, the org-records-mcp recipe is
+=(:host github :repo "stfl/org-records-mcp" :branch "main" :files (:defaults "org-records-mcp-stdio.sh"))=.
 
-- turn it into =NEXT= when it is actionable now;
-- turn it into =PROJ= when it needs multiple steps;
-- turn it into =WAIT= when the next move belongs to someone else;
-- tag it =SOMEDAY= when it is deliberately deferred;
-- keep it as =TODO= when it belongs to a =PROJ= but is not actionable yet;
+* Limits
 
-- refile it to the corresponding position in the system;
+- *It is opinionated and global.* =agile-gtd-enable= sets your TODO keywords,
+  priority range, workflow tags, capture templates, agenda files and a set of
+  Org options. Agenda commands and capture templates on the keys it uses are
+  replaced; others are kept. [[file:docs/configuration.org][What the package configures]] lists every change
+  and how to turn parts of it off.
+- *It is for one person.* There are no story points, no velocity, no burndown
+  and no shared team backlog.
+- *It installs no keybindings.* The range commands and chain helpers are
+  yours to bind.
+- *The deadline table is fixed.* How many days out a deadline counts as =A=,
+  =B= and so on is not configurable.
+- *org-records-mcp is a hard dependency*, even when you never connect an AI
+  assistant.
 
-The package includes capture templates for inbox items, projects, scheduled
-actions, deadline-driven actions, and protocol captures.
+* Where to go next
 
-* Task dependencies
+| You want to know                                           | Read                                         |
+|------------------------------------------------------------+----------------------------------------------|
+| What each state, tag and property means; inbox and capture | [[file:docs/workflow.org][The workflow model]]                           |
+| How priorities, parent priority and deadlines make rank    | [[file:docs/priorities-and-rank.org][Priorities and rank]]                          |
+| What each range shows and how to rotate between them       | [[file:docs/view-ranges.org][View ranges]]                                  |
+| Every agenda command and how its blocks are grouped        | [[file:docs/agenda-commands.org][Agenda commands]]                              |
+| Registering clients, teams and engagements                 | [[file:docs/projects.org][Projects]]                                     |
+| Chaining steps so the next one becomes =NEXT=              | [[file:docs/task-dependencies.org][Task dependencies]]                            |
+| Querying the workflow from your own org-ql searches        | [[file:docs/org-ql-predicates.org][org-ql predicates]]                            |
+| Giving an AI assistant your agenda through MCP             | [[file:docs/org-records-mcp.org][Views for AI assistants]]                      |
+| What =agile-gtd-enable= changes in Org                     | [[file:docs/configuration.org][What the package configures]]                  |
+| Each Org option it sets, and why                           | [[file:docs/org-settings.org][Org settings agile-gtd applies]]               |
+| What changed between releases                              | [[file:CHANGELOG.org][Changelog]]                                    |
 
-Sequential steps inside a project can be chained using org-edna's =TRIGGER= and =BLOCKER=
-properties.
+* Contributing
 
-The common pattern is:
-
-#+begin_example
- * PROJ Build release
- ** NEXT Write changelog
-   :PROPERTIES:
-   :TRIGGER: next-sibling todo!(NEXT)
-   :END:
- ** TODO Tag commit
-   :PROPERTIES:
-   :BLOCKER: previous-sibling
-   :END:
- ** TODO Publish
-   :PROPERTIES:
-   :BLOCKER: previous-sibling
-   :END:
-#+end_example
-
-- =TRIGGER: next-sibling todo!(NEXT)= — when this task is marked =DONE=, the next sibling
-  automatically becomes =NEXT=.
-- =BLOCKER: previous-sibling= — this task stays blocked until the previous sibling is =DONE=.
-
-A blocked task stays out of the next actions until it is due: the =next= view
-keys list a blocked task scheduled or due today, and the agenda shows it dimmed
-in the day block. Backlogs list blocked tasks, dimmed in the agenda.
-
-The =agile-gtd-blocked= predicate (see [[*Derived concepts][Derived concepts]]) can be used
-in custom org-ql queries to match or exclude blocked items.
-
-Helper commands in =org-mode= buffers (=SPC m d=):
-
-| Key   | Command                          | Effect                              |
-|-------+----------------------------------+-------------------------------------|
-| =d n= | =agile-gtd-trigger-next-sibling= | Set TRIGGER on current task         |
-| =d b= | =agile-gtd-chain-task=           | Set TRIGGER + BLOCKER (chain step)  |
-
-* Metadata and history
-
-The workflow expects standard Org metadata to carry process state:
-
-| Property          | Meaning                                   |
-|-------------------+-------------------------------------------|
-| =ID=              | Stable identity                           |
-| =CREATED=         | Capture or creation time                  |
-| =TRIGGER=         | org-edna automation for follow-up actions |
-| =BLOCKER=         | org-edna dependency                       |
-| =REPEAT_TO_STATE= | Repeat target, usually NEXT               |
-| =Effort=          | Estimate, typically in work files         |
-
-The LOGBOOK keeps the audit trail: state changes, clock entries, and notes.
-In work contexts, the same tree can also be used with =org-clock= and effort
-estimates for time tracking and reporting.
-
-* What the package configures
-
-=agile-gtd-enable= and =agile-gtd-refresh= install the workflow into Org by
-configuring:
-
-- TODO keywords and faces
-- priority range, faces, and optional org-modern symbols
-- workflow tags
-- inbox and project capture templates
-- agenda files and refile targets
-- org-ql predicates
-- agenda commands for inbox, today, review, stuck projects, and backlog views
-- org-records-mcp view keys, computed fields, sorting and file scope, unless
-  =agile-gtd-enable-org-records-mcp= is nil; see [[*Views for AI assistants (org-records-mcp)][Views for AI assistants (org-records-mcp)]]
-- the Org options the workflow depends on: org-edna-mode, logging into the
-  =LOGBOOK=, the archive location, org-habit, agenda behaviour and
-  inheritance, unless =agile-gtd-enable-org-settings= is nil
-
-=agile-gtd-refresh= stops there. =agile-gtd-enable= also runs the startup tag
-check (see [[*Tag check at startup][Tag check at startup]]).
-
-[[file:docs/org-settings.org][Org settings agile-gtd applies]] lists each of those options with its value and
-the reason for it, and shows how to override one or turn the step off.
-
-The exact file layout is user-configurable through variables such as
-=agile-gtd-inbox-file=, =agile-gtd-todo-file=, and =agile-gtd-projects=,
-but the semantics above stay the same.
-
+Issues and pull requests are welcome at [[https://github.com/stfl/agile-gtd][stfl/agile-gtd]]. The build uses
+[[https://emacs-eask.github.io/][Eask]] and [[https://github.com/casey/just][just]]: =eask install-deps=, then =just build=, =just lint= and =just test=.

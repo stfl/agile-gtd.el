@@ -1,0 +1,44 @@
+#+title: Task dependencies
+
+How to chain the steps of a project with org-edna, and how blocked tasks
+show up in views. Back to the [[file:../README.org][README]].
+
+Sequential steps inside a project can be chained using org-edna's =TRIGGER= and =BLOCKER=
+properties.
+
+The common pattern is:
+
+#+begin_example
+ * PROJ Build release
+ ** NEXT Write changelog
+   :PROPERTIES:
+   :TRIGGER: next-sibling todo!(NEXT)
+   :END:
+ ** TODO Tag commit
+   :PROPERTIES:
+   :BLOCKER: previous-sibling
+   :END:
+ ** TODO Publish
+   :PROPERTIES:
+   :BLOCKER: previous-sibling
+   :END:
+#+end_example
+
+- =TRIGGER: next-sibling todo!(NEXT)= — when this task is marked =DONE=, the next sibling
+  automatically becomes =NEXT=.
+- =BLOCKER: previous-sibling= — this task stays blocked until the previous sibling is =DONE=.
+
+A blocked task stays out of the next actions until it is due: the =next= view
+keys list a blocked task scheduled or due today, and the agenda shows it dimmed
+in the day block. Backlogs list blocked tasks, dimmed in the agenda.
+
+The =agile-gtd-blocked= predicate (see [[file:org-ql-predicates.org][org-ql predicates]]) can be used
+in custom org-ql queries to match or exclude blocked items.
+
+Two helper commands set the properties on the heading at point. The package
+binds no keys for them; bind them in =org-mode-map= if you use them often.
+
+| Command                          | Effect                              |
+|----------------------------------+-------------------------------------|
+| =agile-gtd-trigger-next-sibling= | Set TRIGGER on current task         |
+| =agile-gtd-chain-task=           | Set TRIGGER + BLOCKER (chain step)  |

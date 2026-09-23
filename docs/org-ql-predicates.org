@@ -1,0 +1,22 @@
+#+title: org-ql predicates
+
+The org-ql predicates agile-gtd defines for its core concepts, for use in
+your own queries. Back to the [[file:../README.org][README]].
+
+The package exposes org-ql predicates for the workflow's core concepts:
+
+| Predicate                   | Meaning                                                                                                                                        |
+|-----------------------------+------------------------------------------------------------------------------------------------------------------------------------------------|
+| =agile-gtd-stuck-proj=      | project with no NEXT/WAIT child                                                                                                                |
+| =agile-gtd-standalone-next= | NEXT/WAIT without a project ancestor                                                                                                           |
+| =agile-gtd-tickler=         | deferred item with SOMEDAY + SCHEDULED                                                                                                         |
+| =agile-gtd-tickler-proj=    | project wholly parked in the tickler                                                                                                           |
+| =agile-gtd-someday=         | deferred item                                                                                                                                  |
+| =agile-gtd-habit=           | habit by tag or Org habit style                                                                                                                |
+| =agile-gtd-tangling=        | task left under a completed ancestor                                                                                                           |
+| =agile-gtd-work=            | any work item                                                                                                                                  |
+| =agile-gtd-private=         | non-work item                                                                                                                                  |
+| =agile-gtd-blocked=         | task with an unsatisfied org-edna BLOCKER dependency                                                                                           |
+| =agile-gtd-within-range=    | item ranking inside a range, such as =(agile-gtd-within-range today)=, or at or above a priority's band, such as =(agile-gtd-within-range ?C)= |
+
+These predicates drive agenda commands and review views.

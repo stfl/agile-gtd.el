@@ -40,8 +40,7 @@ own value.
 
 Blocking belongs to org-edna alone: a task is blocked when its =BLOCKER=
 property says so, and nothing else blocks it. See
-[[file:../README.org::*Task dependencies][Task dependencies]] in the README for the =TRIGGER= / =BLOCKER= chain
-pattern.
+[[file:task-dependencies.org][Task dependencies]] for the =TRIGGER= / =BLOCKER= chain pattern.
 
 | Setting                                  | Value       | Why                                                                                                                                                                                                                                                                                                                                            |
 |------------------------------------------+-------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
