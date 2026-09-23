@@ -163,6 +163,15 @@ FILTER and RANGE are passed as a client would pass them."
                                  "Work project step")
                            #'string<))))))
 
+(ert-deftest agile-gtd-org-mcp-work-next-sprint-holds-a-sprint-project-s-steps ()
+  "A step with no cookie rises into `work-next-sprint' with its sprint project.
+Its own default priority stays out of the sprint, so a sibling action
+with no project stays out."
+  (agile-gtd-org-mcp-test-with-fixtures
+    (let ((titles (agile-gtd-org-mcp-test-titles "work-next-sprint")))
+      (should (member "Work project step" titles))
+      (should-not (member "Work default action" titles)))))
+
 (ert-deftest agile-gtd-org-mcp-next-today-holds-any-open-state-blocked-or-not ()
   "`next-today' holds what is due today, a plain TODO and a blocked action alike.
 An [#A] deadline one day out is inside `today' too."
