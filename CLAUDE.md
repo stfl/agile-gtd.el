@@ -24,12 +24,12 @@ eask exec emacs -batch -Q -L . \
 
 ## Architecture
 
-This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion test files under `test/`. It depends on the `stfl/org-mcp` fork (MELPA's `org-mcp` is upstream and has no views); Eask fetches it from GitHub's `main` branch.
+This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion test files under `test/`. It depends on org-records-mcp, which is not on MELPA (MELPA's `org-mcp` is a different package with no views); Eask fetches `stfl/org-records-mcp` from GitHub's `main` branch.
 
 ### Main entry points
 
 - `agile-gtd-enable` — call once after customising variables; delegates to `agile-gtd-refresh`
-- `agile-gtd-refresh` — validates config, then applies all derived settings (priorities, keywords, tags, agenda files, refile targets, capture templates, agenda commands, org-mcp views)
+- `agile-gtd-refresh` — validates config, then applies all derived settings (priorities, keywords, tags, agenda files, refile targets, capture templates, agenda commands, org-records-mcp views)
 
 ### Key subsystems
 
@@ -60,13 +60,13 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion t
 
 **Area table** (`agile-gtd-areas`)
 - One row per area: everything (`:name` nil), `private`, `work`, and one per `agile-gtd-project-records` entry, keyed or not. Each carries `:filter`, `:next-range`, `:day-filter` and `:command` (nil for a project without a character `:key`)
-- `agile-gtd--area-agenda-command` builds `a`, `pp`, `ww` and `w<key>` from it; the org-mcp views are built from the same rows. A change to what an area filters or defaults to goes in the table, never in one consumer
+- `agile-gtd--area-agenda-command` builds `a`, `pp`, `ww` and `w<key>` from it; the org-records-mcp views are built from the same rows. A change to what an area filters or defaults to goes in the table, never in one consumer
 
-**org-mcp views** (`agile-gtd--apply-org-mcp`, behind `agile-gtd-enable-org-mcp`)
-- `agile-gtd-org-mcp-views` generates keys `[<area>-]<view>[-<range>]`: 13 per area plus `inbox` and `tangling`. Each carries a literal `:query` and no `:filter`/`:range`, so org-mcp refuses parameters
-- The apply step merges views and the `rank`/`parent-priority`/`blocked` computed fields by name (dropping keys recorded in `agile-gtd--org-mcp-view-names` from the previous refresh), sets `org-mcp-query-sort-fn`, `org-mcp-view-catalogue-function`, `org-mcp-allowed-files` (nil) and `org-mcp-file-scope-override` (t). It never starts the MCP server
-- `blocked` answers `:json-false` rather than nil, because org-mcp drops nil computed fields
-- `agile-gtd-org-mcp-view-catalogue` writes the `org-view` description from the area table and range list; keep its words in step with the queries
+**org-records-mcp views** (`agile-gtd--apply-org-records-mcp`, behind `agile-gtd-enable-org-records-mcp`)
+- `agile-gtd-org-records-mcp-views` generates keys `[<area>-]<view>[-<range>]`: 13 per area plus `inbox` and `tangling`. Each carries a literal `:query` and no `:filter`/`:range`, so org-records-mcp refuses parameters
+- The apply step merges views and the `rank`/`parent-priority`/`blocked` computed fields by name (dropping keys recorded in `agile-gtd--org-records-mcp-view-names` from the previous refresh), sets `org-records-mcp-query-sort-fn`, `org-records-mcp-view-catalogue-function`, `org-records-mcp-allowed-files` (nil) and `org-records-mcp-file-scope-override` (t). It never starts the MCP server
+- `blocked` answers `:json-false` rather than nil, because org-records-mcp drops nil computed fields
+- `agile-gtd-org-records-mcp-view-catalogue` writes the `org-view` description from the area table and range list; keep its words in step with the queries
 
 **Rank / sort key** (`agile-gtd--item-rank`, `agile-gtd--item-rank<`)
 - Composite score from item priority, parent-project priority, deadline proximity, and scheduled date
@@ -101,6 +101,6 @@ Tests live in `test/` and are split by concern:
 | `agile-gtd-agenda-test.el` | agenda query helpers |
 | `agile-gtd-range-test.el` | view-range cutoffs, the rank/grouping contract, and the Scheduled group |
 | `agile-gtd-startup-test.el` | the project registry, its normalisation and skip-and-warn, and the project-tag startup check |
-| `agile-gtd-org-mcp-test.el` | the org-mcp view keys, called through `org-mcp--tool-view` over fixture files; computed fields, refusals, the apply step and its flag |
+| `agile-gtd-org-records-mcp-test.el` | the org-records-mcp view keys, called through `org-records-mcp--tool-view` over fixture files; computed fields, refusals, the apply step and its flag |
 
-The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd/org-mcp variables to clean defaults and using a temporary `org-directory`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.
+The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd/org-records-mcp variables to clean defaults and using a temporary `org-directory`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.

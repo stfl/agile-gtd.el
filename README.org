@@ -456,10 +456,10 @@ that shows any of it.
 Interactive narrowing by tag is available in any agenda buffer via
 =org-agenda-filter-by-tag= (=\= key).
 
-* Views for AI assistants (org-mcp)
+* Views for AI assistants (org-records-mcp)
 
-=agile-gtd= depends on [[https://github.com/stfl/org-mcp][org-mcp]], which serves Org files to MCP clients such as
-AI assistants. Every =agile-gtd-refresh= turns the agenda's lists into org-mcp
+=agile-gtd= depends on [[https://github.com/stfl/org-records-mcp][org-records-mcp]], which serves Org files to MCP clients such as
+AI assistants. Every =agile-gtd-refresh= turns the agenda's lists into org-records-mcp
 /view keys/, so an assistant asks for =private-next= and gets the Private
 Agenda's next actions, sorted by rank. The keys come from the same area table
 as the agenda commands, so a key and the agenda block it mirrors cannot drift
@@ -468,7 +468,7 @@ apart.
 ** Key grammar
 
 A key is =[<area>-]<view>[-<range>]=, and it is the whole question: a key
-takes no filter and no range parameter, and org-mcp refuses both, as it refuses
+takes no filter and no range parameter, and org-records-mcp refuses both, as it refuses
 an unknown key with the names that exist.
 
 - /area/: omitted for everything, =private=, =work=, or the tag of any project
@@ -517,32 +517,32 @@ Every result comes most urgent first, by rank, and each node carries three
 computed fields: =rank=, =parent-priority= (the parent's priority as a
 character code, 65 for =A=) and =blocked= (true or false, org-edna aware).
 
-** What agile-gtd sets in org-mcp
+** What agile-gtd sets in org-records-mcp
 
-On every refresh, unless =agile-gtd-enable-org-mcp= is nil:
+On every refresh, unless =agile-gtd-enable-org-records-mcp= is nil:
 
 | Variable                          | Set to                                                  |
 |-----------------------------------+---------------------------------------------------------|
-| =org-mcp-views=                   | the keys, merged by name; views under other names stay  |
-| =org-mcp-computed-fields=         | =rank=, =parent-priority= and =blocked=, merged by name |
-| =org-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator            |
-| =org-mcp-view-catalogue-function= | the key grammar, in place of one line per key           |
-| =org-mcp-allowed-files=           | nil, so views run over =org-agenda-files=               |
-| =org-mcp-file-scope-override=     | t, so a call may name any Org file                      |
+| =org-records-mcp-views=                   | the keys, merged by name; views under other names stay  |
+| =org-records-mcp-computed-fields=         | =rank=, =parent-priority= and =blocked=, merged by name |
+| =org-records-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator            |
+| =org-records-mcp-view-catalogue-function= | the key grammar, in place of one line per key           |
+| =org-records-mcp-allowed-files=           | nil, so views run over =org-agenda-files=               |
+| =org-records-mcp-file-scope-override=     | t, so a call may name any Org file                      |
 
 A key belonging to a project that left the registry goes with it. With the
-flag off, agile-gtd leaves every org-mcp variable as it is.
+flag off, agile-gtd leaves every org-records-mcp variable as it is.
 
-** Setting up org-mcp
+** Setting up org-records-mcp
 
-=agile-gtd= configures what org-mcp serves; you configure how it runs. Your
+=agile-gtd= configures what org-records-mcp serves; you configure how it runs. Your
 configuration installs the two stdio shims an MCP client launches and starts
 the server. =agile-gtd= never starts it.
 
-The org-mcp that agile-gtd needs is the [[https://github.com/stfl/org-mcp][stfl/org-mcp]] fork, from its =main=
-branch. MELPA's =org-mcp= is the upstream package, which has no views, so
-install the fork by recipe, for example with straight:
-=(:host github :repo "stfl/org-mcp" :branch "main" :files (:defaults "org-mcp-stdio.sh"))=.
+[[https://github.com/stfl/org-records-mcp][org-records-mcp]] is not on MELPA; install it by recipe from its =main= branch,
+for example with straight. MELPA's =org-mcp=, which it grew out of, has no
+views and does not work with agile-gtd.
+=(:host github :repo "stfl/org-records-mcp" :branch "main" :files (:defaults "org-records-mcp-stdio.sh"))=.
 
 #+begin_src emacs-lisp
 (use-package agile-gtd
@@ -561,28 +561,28 @@ install the fork by recipe, for example with straight:
   (unless (file-exists-p (mcp-server-lib-installed-script-path))
     (mcp-server-lib-install)))
 
-(use-package org-mcp
+(use-package org-records-mcp
   ;; After agile-gtd, so the views exist before the first call.
   :after (org agile-gtd mcp-server-lib)
   :config
-  (unless (file-exists-p (org-mcp--installed-script-path))
-    (org-mcp-install))
+  (unless (file-exists-p (org-records-mcp--installed-script-path))
+    (org-records-mcp-install))
   (unless mcp-server-lib--running
     (mcp-server-lib-start)))
 #+end_src
 
-Everything else org-mcp needs for this workflow comes from =agile-gtd-enable=:
+Everything else org-records-mcp needs for this workflow comes from =agile-gtd-enable=:
 the views, their sort order, the computed fields, the key grammar in the tool
-description, =org-mcp-allowed-files= set to nil and
-=org-mcp-file-scope-override= set to t (see the table above). A value you set
-for any of these yourself is replaced on the next refresh. To keep your own org-mcp
+description, =org-records-mcp-allowed-files= set to nil and
+=org-records-mcp-file-scope-override= set to t (see the table above). A value you set
+for any of these yourself is replaced on the next refresh. To keep your own org-records-mcp
 configuration instead, turn that off before =agile-gtd-enable= runs:
 
 #+begin_src emacs-lisp
-(setopt agile-gtd-enable-org-mcp nil)
+(setopt agile-gtd-enable-org-records-mcp nil)
 #+end_src
 
-org-mcp resolves a key on every call, so the keys a refresh adds, such as those
+org-records-mcp resolves a key on every call, so the keys a refresh adds, such as those
 of a project added to the registry, work at once. The key grammar in the =org-view=
 tool description is written when a client connects, and is rewritten once
 every client has disconnected and one connects again.
@@ -692,8 +692,8 @@ configuring:
 - agenda files and refile targets
 - org-ql predicates
 - agenda commands for inbox, today, review, stuck projects, and backlog views
-- org-mcp view keys, computed fields, sorting and file scope, unless
-  =agile-gtd-enable-org-mcp= is nil; see [[*Views for AI assistants (org-mcp)][Views for AI assistants (org-mcp)]]
+- org-records-mcp view keys, computed fields, sorting and file scope, unless
+  =agile-gtd-enable-org-records-mcp= is nil; see [[*Views for AI assistants (org-records-mcp)][Views for AI assistants (org-records-mcp)]]
 
 =agile-gtd-refresh= stops there. =agile-gtd-enable= also runs the startup tag
 check (see [[*Tag check at startup][Tag check at startup]]).

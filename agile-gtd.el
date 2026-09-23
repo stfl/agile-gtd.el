@@ -2,7 +2,7 @@
 
 ;; Version: 0.4.0
 ;; URL: https://github.com/stfl/agile-gtd
-;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2") (org-mcp "0.9.0"))
+;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2") (org-records-mcp "0.9.0"))
 ;; Keywords: outlines, calendar, tools
 
 ;;; Commentary:
@@ -20,7 +20,7 @@
 (require 'org-capture)
 (require 'org-element)
 (require 'org-id)
-(require 'org-mcp)
+(require 'org-records-mcp)
 (require 'org-ql)
 (require 'org-ql-search)
 (require 'org-super-agenda)
@@ -209,13 +209,13 @@ When nil, derive it from `agile-gtd-priority-default'."
   :type 'boolean
   :group 'agile-gtd)
 
-(defcustom agile-gtd-enable-org-mcp t
-  "Whether `agile-gtd-refresh' should configure org-mcp.
-When non-nil, every refresh generates one org-mcp view per key and merges
-them into `org-mcp-views', merges the `rank', `parent-priority' and
-`blocked' computed fields into `org-mcp-computed-fields', sorts views by
-rank, describes the keys through `org-mcp-view-catalogue-function', and
-sets `org-mcp-allowed-files' to nil and `org-mcp-file-scope-override' to
+(defcustom agile-gtd-enable-org-records-mcp t
+  "Whether `agile-gtd-refresh' should configure org-records-mcp.
+When non-nil, every refresh generates one org-records-mcp view per key and merges
+them into `org-records-mcp-views', merges the `rank', `parent-priority' and
+`blocked' computed fields into `org-records-mcp-computed-fields', sorts views by
+rank, describes the keys through `org-records-mcp-view-catalogue-function', and
+sets `org-records-mcp-allowed-files' to nil and `org-records-mcp-file-scope-override' to
 t.  Views and computed fields under other names are left alone.
 Starting the MCP server stays with the user\\='s configuration."
   :type 'boolean
@@ -956,7 +956,7 @@ rather than cost one project its command."
    (agile-gtd-project-records)))
 
 (defun agile-gtd-areas ()
-  "Return the areas the agenda commands and the org-mcp views are built from.
+  "Return the areas the agenda commands and the org-records-mcp views are built from.
 An area is a slice of the outline a question is asked of: everything, the
 private or the work entries, or one project.  Each is a plist:
 
@@ -1545,7 +1545,7 @@ This is the inverse of `agile-gtd--prio-rank'."
   (org-super-agenda-mode 1)
   (setq org-super-agenda-header-separator "\n"))
 
-(defconst agile-gtd--org-mcp-views
+(defconst agile-gtd--org-records-mcp-views
   '((next . "unblocked NEXT/WAIT in the range, plus every open task of any \
 state scheduled or due today or overdue, blocked or not")
     (backlog . "PROJ and standalone NEXT/WAIT in the range, blocked ones \
@@ -1553,14 +1553,14 @@ included, no habits")
     (stuck . "projects with no NEXT/WAIT child; takes no range"))
   "The views every area asks, each with what it holds for the catalogue.")
 
-(defconst agile-gtd--org-mcp-global-views
+(defconst agile-gtd--org-records-mcp-global-views
   '((inbox . "open items carrying an inbox tag; asked of everything only, \
 with no area and no range")
     (tangling . "open items under a done ancestor; asked of everything only, \
 with no area and no range"))
   "The views asked of everything only, taking neither area nor range.")
 
-(defun agile-gtd--org-mcp-range-description (range)
+(defun agile-gtd--org-records-mcp-range-description (range)
   "Return what RANGE admits, for the catalogue."
   (pcase range
     ('today (format "rank 0 or below: any deadline within %d days (the [#%c] \
@@ -1573,7 +1573,7 @@ deadline window), due today, overdue, or scheduled today or earlier"
     (_ (format "priority %c and above, by cookie, parent or deadline"
                (agile-gtd-view-range-priority range)))))
 
-(defun agile-gtd--org-mcp-catalogue-entry (indent text &optional flush)
+(defun agile-gtd--org-records-mcp-catalogue-entry (indent text &optional flush)
   "Return TEXT filled to a paragraph, its first line at INDENT.
 Continuation lines hang four columns further in, so a term and what it
 means read apart, unless FLUSH is non-nil, which keeps them at INDENT."
@@ -1584,7 +1584,7 @@ means read apart, unless FLUSH is non-nil, which keeps them at INDENT."
       (fill-region (point-min) (point-max)))
     (concat (buffer-string) "\n")))
 
-(defun agile-gtd--org-mcp-view-key (area view &optional range)
+(defun agile-gtd--org-records-mcp-view-key (area view &optional range)
   "Return the key of VIEW asked of AREA at RANGE, as an interned symbol.
 AREA is an area\\='s `:name', nil for everything; RANGE nil names the
 short key, which runs at the area\\='s default."
@@ -1592,8 +1592,8 @@ short key, which runs at the area\\='s default."
                   (symbol-name view)
                   (and range (concat "-" (symbol-name range))))))
 
-(defun agile-gtd--org-mcp-area-views (area)
-  "Return the org-mcp views of AREA: `next' and `backlog' at every range,
+(defun agile-gtd--org-records-mcp-area-views (area)
+  "Return the org-records-mcp views of AREA: `next' and `backlog' at every range,
 both again at the area\\='s default, and `stuck'."
   (let ((name (plist-get area :name))
         (filter (plist-get area :filter)))
@@ -1601,26 +1601,26 @@ both again at the area\\='s default, and `stuck'."
       (append
        (mapcan
         (lambda (range)
-          (list (view (agile-gtd--org-mcp-view-key name 'next range)
+          (list (view (agile-gtd--org-records-mcp-view-key name 'next range)
                       (agile-gtd-agenda-query-next-actions filter range))
-                (view (agile-gtd--org-mcp-view-key name 'backlog range)
+                (view (agile-gtd--org-records-mcp-view-key name 'backlog range)
                       (agile-gtd-agenda-query-backlog filter range))))
         agile-gtd-view-ranges)
-       (list (view (agile-gtd--org-mcp-view-key name 'next)
+       (list (view (agile-gtd--org-records-mcp-view-key name 'next)
                    (agile-gtd-agenda-query-next-actions
                     filter (plist-get area :next-range)))
-             (view (agile-gtd--org-mcp-view-key name 'backlog)
+             (view (agile-gtd--org-records-mcp-view-key name 'backlog)
                    (agile-gtd-agenda-query-backlog filter 'all))
-             (view (agile-gtd--org-mcp-view-key name 'stuck)
+             (view (agile-gtd--org-records-mcp-view-key name 'stuck)
                    (agile-gtd-agenda-query-stuck-projects filter)))))))
 
-(defun agile-gtd-org-mcp-views ()
-  "Return the org-mcp views agile-gtd generates, one per key.
+(defun agile-gtd-org-records-mcp-views ()
+  "Return the org-records-mcp views agile-gtd generates, one per key.
 A key is `[<area>-]<view>[-<range>]' and is the whole question: each view
-carries a literal query and declares no filter or range, so org-mcp
+carries a literal query and declares no filter or range, so org-records-mcp
 refuses both.  The areas are `agile-gtd-areas', the same table the agenda
 commands are built from."
-  (append (mapcan #'agile-gtd--org-mcp-area-views (agile-gtd-areas))
+  (append (mapcan #'agile-gtd--org-records-mcp-area-views (agile-gtd-areas))
           (list (list 'inbox :query (agile-gtd-agenda-query-inbox))
                 (list 'tangling :query '(agile-gtd-tangling)))))
 
@@ -1630,8 +1630,8 @@ A computed field answering nil is left out of a node, and a missing
 `blocked\' reads as not known rather than as not blocked."
   (if (org-entry-blocked-p) t :json-false))
 
-(defun agile-gtd--org-mcp-computed-fields ()
-  "Return the computed fields agile-gtd gives every org-mcp node."
+(defun agile-gtd--org-records-mcp-computed-fields ()
+  "Return the computed fields agile-gtd gives every org-records-mcp node."
   (list (cons 'rank #'agile-gtd--item-rank)
         (cons 'parent-priority #'agile-gtd--direct-parent-priority)
         (cons 'blocked #'agile-gtd--item-blocked)))
@@ -1642,11 +1642,11 @@ A computed field answering nil is left out of a node, and a missing
       (concat (string-join (butlast words) ", ") " and " (car (last words)))
     (or (car words) "")))
 
-(defun agile-gtd-org-mcp-view-catalogue ()
+(defun agile-gtd-org-records-mcp-view-catalogue ()
   "Return the views part of the org-view tool description.
 It states the key grammar with the areas, views and ranges that exist and
 the default range of each area, rather than one line per key.  Set as
-`org-mcp-view-catalogue-function'."
+`org-records-mcp-view-catalogue-function'."
   (let* ((areas (agile-gtd-areas))
          (indent "           ")
          (item (concat indent "  "))
@@ -1665,28 +1665,28 @@ the default range of each area, rather than one line per key.  Set as
                      (format "%s for %s" range (agile-gtd--join-words named))))
                  agile-gtd-view-ranges))))
     (concat
-     (agile-gtd--org-mcp-catalogue-entry
+     (agile-gtd--org-records-mcp-catalogue-entry
       indent (format "Each key is the whole question and takes no filter or \
 range.  A key is [<area>-]<view>[-<range>], for example private-next, \
 %s-backlog-sprint or next-today."
                      (car (last names)))
       t)
-     (agile-gtd--org-mcp-catalogue-entry
+     (agile-gtd--org-records-mcp-catalogue-entry
       indent (concat "area - omitted for everything, or one of: "
                      (string-join names ", ")))
      indent "view - what the key asks:\n"
      (mapconcat (lambda (view)
-                  (agile-gtd--org-mcp-catalogue-entry
+                  (agile-gtd--org-records-mcp-catalogue-entry
                    item (format "%s - %s" (car view) (cdr view))))
-                (append agile-gtd--org-mcp-views agile-gtd--org-mcp-global-views)
+                (append agile-gtd--org-records-mcp-views agile-gtd--org-records-mcp-global-views)
                 "")
      indent "range - narrowest first, optional on next and backlog:\n"
      (mapconcat (lambda (range)
-                  (agile-gtd--org-mcp-catalogue-entry
+                  (agile-gtd--org-records-mcp-catalogue-entry
                    item (format "%s - %s" range
-                                (agile-gtd--org-mcp-range-description range))))
+                                (agile-gtd--org-records-mcp-range-description range))))
                 agile-gtd-view-ranges "")
-     (agile-gtd--org-mcp-catalogue-entry
+     (agile-gtd--org-records-mcp-catalogue-entry
       indent (concat "Without a range, next runs at "
                      (string-join defaults ", and at ")
                      "; backlog runs at all.  Every result is sorted by rank, \
@@ -1694,8 +1694,8 @@ most urgent first, and each node carries the computed fields rank, \
 parent-priority and blocked.")
       t))))
 
-(defvar agile-gtd--org-mcp-view-names nil
-  "The view names the last refresh put into `org-mcp-views'.
+(defvar agile-gtd--org-records-mcp-view-names nil
+  "The view names the last refresh put into `org-records-mcp-views'.
 A refresh removes these before adding the current keys, so a key whose
 project left the registry goes with it.")
 
@@ -1707,23 +1707,23 @@ Entries named in RETIRED are dropped as well; every other entry is kept."
                           current)
             additions)))
 
-(defun agile-gtd--apply-org-mcp ()
-  "Configure org-mcp from the area table, unless `agile-gtd-enable-org-mcp' is off.
-The server itself is started by the user\\='s configuration: org-mcp reads
+(defun agile-gtd--apply-org-records-mcp ()
+  "Configure org-records-mcp from the area table, unless `agile-gtd-enable-org-records-mcp' is off.
+The server itself is started by the user\\='s configuration: org-records-mcp reads
 the views on every call, so keys added here resolve at once, and builds the
 org-view description when a client connects."
-  (when agile-gtd-enable-org-mcp
-    (let ((views (agile-gtd-org-mcp-views)))
-      (setq org-mcp-views (agile-gtd--merge-by-name
-                           org-mcp-views views agile-gtd--org-mcp-view-names)
-            agile-gtd--org-mcp-view-names (mapcar #'car views)
-            org-mcp-computed-fields (agile-gtd--merge-by-name
-                                     org-mcp-computed-fields
-                                     (agile-gtd--org-mcp-computed-fields))
-            org-mcp-query-sort-fn #'agile-gtd--item-rank<
-            org-mcp-view-catalogue-function #'agile-gtd-org-mcp-view-catalogue
-            org-mcp-allowed-files nil
-            org-mcp-file-scope-override t))))
+  (when agile-gtd-enable-org-records-mcp
+    (let ((views (agile-gtd-org-records-mcp-views)))
+      (setq org-records-mcp-views (agile-gtd--merge-by-name
+                           org-records-mcp-views views agile-gtd--org-records-mcp-view-names)
+            agile-gtd--org-records-mcp-view-names (mapcar #'car views)
+            org-records-mcp-computed-fields (agile-gtd--merge-by-name
+                                     org-records-mcp-computed-fields
+                                     (agile-gtd--org-records-mcp-computed-fields))
+            org-records-mcp-query-sort-fn #'agile-gtd--item-rank<
+            org-records-mcp-view-catalogue-function #'agile-gtd-org-records-mcp-view-catalogue
+            org-records-mcp-allowed-files nil
+            org-records-mcp-file-scope-override t))))
 
 (defun agile-gtd-refresh ()
   "Refresh all derived Agile GTD configuration."
@@ -1737,7 +1737,7 @@ org-view description when a client connects."
   (agile-gtd--apply-refile-targets)
   (agile-gtd--apply-capture-templates)
   (agile-gtd--apply-agenda-commands)
-  (agile-gtd--apply-org-mcp))
+  (agile-gtd--apply-org-records-mcp))
 
 (defun agile-gtd--project-untagged-files (record)
   "Return the files of RECORD that do not declare RECORD\\='s tag.
