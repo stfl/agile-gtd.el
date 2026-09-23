@@ -94,20 +94,12 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion t
 
 ### Documentation
 
-When making any code changes, update `README.org` to reflect them. `README.org` is the human-facing page: it never links into this file.
+Human-facing docs are Org files. `README.org` is a primer: the concept, a real agenda capture, quickstart, install, limits, and a "Where to go next" table. Reference lives in `docs/*.org`, one page per question; `docs/CLAUDE.md` lists the pages and their conventions. Releases are described in `CHANGELOG.org`.
 
-### Test conventions
+- A fact earns a place in `README.org` only by changing what the project is or what it costs to run. Everything else goes to a `docs/` page and is linked from the README's table.
+- A code change that alters user-visible behaviour updates the `docs/` page describing it in the same change.
+- Human-facing files never link into a `CLAUDE.md`.
 
-Tests live in `test/` and are split by concern:
+### Per-directory notes
 
-| File | Coverage |
-|---|---|
-| `agile-gtd-test.el` | `agile-gtd-enable`, configuration application, capture templates, agenda commands |
-| `agile-gtd-rank-test.el` | rank and sort functions |
-| `agile-gtd-org-ql-predicates-test.el` | custom org-ql predicates |
-| `agile-gtd-agenda-test.el` | agenda query helpers |
-| `agile-gtd-range-test.el` | view-range cutoffs, the rank/grouping contract, and the Scheduled group |
-| `agile-gtd-startup-test.el` | the project registry, its normalisation and skip-and-warn, and the project-tag startup check |
-| `agile-gtd-org-records-mcp-test.el` | the org-records-mcp view keys, called through `org-records-mcp--tool-view` over fixture files; computed fields, refusals, the apply step and its flag |
-
-The `agile-gtd-test-with-sandbox` macro isolates each test by binding all relevant org/agile-gtd/org-records-mcp variables to clean defaults and using a temporary `org-directory`.  It and `agile-gtd-org-ql-test-with-sandbox` both bind every variable `agile-gtd--apply-org-settings` sets, plus `org-edna-mode`, `org-blocker-hook`, `org-trigger-hook` and `org-modules`; keep both in step with `agile-gtd--org-settings`.  Always use this macro (or the sandbox it provides) rather than mutating global state directly.
+`test/CLAUDE.md` (suites, sandbox macros, adding a test file) and `docs/CLAUDE.md` (page index and doc conventions) load when a file in that directory is read. Changing the code in a directory obliges reconciling its `CLAUDE.md` before finishing.
