@@ -1,9 +1,28 @@
 ;;; agile-gtd.el --- Agile GTD workflow for Org -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 Stefan Lendl
+
+;; Author: Stefan Lendl <git@stfl.dev>
 ;; Version: 0.4.0
 ;; URL: https://github.com/stfl/agile-gtd
 ;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2") (org-records-mcp "0.9.0"))
 ;; Keywords: outlines, calendar, tools
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is not part of GNU Emacs.
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 

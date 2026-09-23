@@ -5,6 +5,7 @@
          "Agile GTD workflow for Org")
 
 (website-url "https://github.com/stfl/agile-gtd")
+(license "GPL-3.0-or-later")
 (keywords "outlines" "calendar" "tools")
 (package-file "agile-gtd.el")
 

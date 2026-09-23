@@ -188,3 +188,7 @@ With straight, the org-records-mcp recipe is
 
 Issues and pull requests are welcome at [[https://github.com/stfl/agile-gtd][stfl/agile-gtd]]. The build uses
 [[https://emacs-eask.github.io/][Eask]] and [[https://github.com/casey/just][just]]: =eask install-deps=, then =just build=, =just lint= and =just test=.
+
+* License
+
+[[file:LICENSE][GPL-3.0-or-later]].
