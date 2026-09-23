@@ -1170,6 +1170,54 @@ the plan, so it shows them, dimmed so they read as not yet startable."
                                      'org-agenda-dimmed-todo-face))
                                (overlays-at pos))))))))))
 
+(ert-deftest agile-gtd-agenda-day-block-dims-blocked-items-due-today ()
+  "Every area command's day block shows a blocked task due today, dimmed.
+The next-actions block below leaves today's work to the day block, so a
+day block that hid the task would drop it from the agenda altogether."
+  (dolist (case '(("a" "Private blocked today")
+                  ("pp" "Private blocked today")
+                  ("ww" "Work blocked today")
+                  ("wx" "Acme blocked today")))
+    (pcase-let ((`(,key ,title) case))
+      (ert-info ((format "%s dims %s" key title))
+        (agile-gtd-org-ql-test-with-sandbox
+          (let* ((file (expand-file-name "blocked-today.org" org-directory))
+                 (org-agenda-window-setup 'current-window)
+                 (org-blocker-hook (list #'org-edna-blocker-function))
+                 (org-agenda-dim-blocked-tasks 'invisible)
+                 (agile-gtd-projects '((:tag "acme" :name "Acme" :key ?x)))
+                 (scheduled (format "SCHEDULED: <%s>\n"
+                                    (format-time-string "%Y-%m-%d %a")))
+                 (blocker ":PROPERTIES:\n:BLOCKER:  previous-sibling\n:END:\n\n"))
+            (with-temp-file file
+              (insert "* NEXT [#B] Private first step\n\n"
+                      "* NEXT [#B] Private blocked today\n" scheduled blocker
+                      "* NEXT [#B] Work first step :#work:\n\n"
+                      "* NEXT [#B] Work blocked today :#work:\n" scheduled blocker
+                      "* NEXT [#B] Acme first step :acme:\n\n"
+                      "* NEXT [#B] Acme blocked today :acme:\n" scheduled blocker))
+            (agile-gtd-enable)
+            (setq org-agenda-files (list file))
+            (unwind-protect
+                (save-window-excursion
+                  (org-agenda nil key)
+                  (should (eq org-agenda-dim-blocked-tasks 'invisible))
+                  (with-current-buffer (get-buffer org-agenda-buffer-name)
+                    (goto-char (point-min))
+                    (should (search-forward title nil t))
+                    (let ((pos (match-beginning 0)))
+                      (ert-info ("The match is in the day block")
+                        (should (< pos (save-excursion
+                                         (goto-char (point-min))
+                                         (search-forward "Next Actions")))))
+                      (should-not (invisible-p pos))
+                      (should (cl-some (lambda (ov)
+                                         (eq (overlay-get ov 'face)
+                                             'org-agenda-dimmed-todo-face))
+                                       (overlays-at pos))))))
+              (when-let* ((buf (get-buffer org-agenda-buffer-name)))
+                (kill-buffer buf)))))))))
+
 (ert-deftest agile-gtd-agenda-backlog-at-today-lists-only-what-is-due-today ()
   "A backlog rotated to `today' holds the projects and actions due today.
 Nothing without a date for today comes along, whatever its priority, and

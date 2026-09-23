@@ -650,8 +650,8 @@ The common pattern is:
 - =BLOCKER: previous-sibling= — this task stays blocked until the previous sibling is =DONE=.
 
 A blocked task stays out of the next actions until it is due: the =next= view
-keys list a blocked task scheduled or due today, and the agenda shows it in the
-day block. Backlogs list blocked tasks, dimmed in the agenda.
+keys list a blocked task scheduled or due today, and the agenda shows it dimmed
+in the day block. Backlogs list blocked tasks, dimmed in the agenda.
 
 The =agile-gtd-blocked= predicate (see [[*Derived concepts][Derived concepts]]) can be used
 in custom org-ql queries to match or exclude blocked items.

@@ -1022,7 +1022,12 @@ the day block above it already carries."
                                    (agile-gtd--agenda-block-range ',range) t)
                                   ((org-ql-block-header
                                     (agile-gtd--agenda-block-header "Next Actions" ',range))
-                                   (org-super-agenda-groups ',(agile-gtd-rank-groups))))))))
+                                   (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
+      ;; A blocked task due today shows dimmed in the day block: the
+      ;; next-actions block leaves today to it, so hiding it would drop the
+      ;; task from the agenda.  The setting is the command's for the reason
+      ;; the backlog commands give.
+      ((org-agenda-dim-blocked-tasks t)))))
 
 (defun agile-gtd--project-agenda-commands ()
   "Return an agenda command for each project declaring a `:key' character."
