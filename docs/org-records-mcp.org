@@ -58,22 +58,36 @@ one, and =stuck=. With three projects registered — say =alpha=, =beta= and
 - =inbox=: open items carrying one of =agile-gtd-inbox-tags=.
 - =tangling=: open items under a finished ancestor.
 
-Every result comes most urgent first, by rank, and each node carries three
+Every result comes most urgent first, by rank, and each node carries four
 computed fields: =rank=, =parent-priority= (the parent's priority as a
-character code, 65 for =A=) and =blocked= (true or false, org-edna aware).
+character code, 65 for =A=), =blocked= (true or false, org-edna aware) and
+=breadcrumbs=.
+
+=breadcrumbs= lists the node's ancestors, outermost first, so a row titled
+"Write the tests" says which project it belongs to. Each crumb carries the
+ancestor's =title=, the =link= that reads it and its outline =level=. A
+section heading without a keyword is a crumb like any other; the file is
+not one. A top-level node answers an empty array.
+
+#+begin_src json
+"breadcrumbs": [
+  {"title": "Platform", "link": "file:~/org/alpha.org::*Platform", "level": 1},
+  {"title": "Release pipeline", "link": "id:3c1f…", "level": 2}
+]
+#+end_src
 
 * What agile-gtd sets in org-records-mcp
 
 On every refresh, unless =agile-gtd-enable-org-records-mcp= is nil:
 
-| Variable                          | Set to                                                  |
-|-----------------------------------+---------------------------------------------------------|
-| =org-records-mcp-views=                   | the keys, merged by name; views under other names stay  |
-| =org-records-mcp-computed-fields=         | =rank=, =parent-priority= and =blocked=, merged by name |
-| =org-records-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator            |
-| =org-records-mcp-view-catalogue-function= | the key grammar, in place of one line per key           |
-| =org-records-mcp-allowed-files=           | nil, so views run over =org-agenda-files=               |
-| =org-records-mcp-file-scope-override=     | t, so a call may name any Org file                      |
+| Variable                                  | Set to                                                                 |
+|-------------------------------------------+------------------------------------------------------------------------|
+| =org-records-mcp-views=                   | the keys, merged by name; views under other names stay                 |
+| =org-records-mcp-computed-fields=         | =rank=, =parent-priority=, =blocked= and =breadcrumbs=, merged by name |
+| =org-records-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator                           |
+| =org-records-mcp-view-catalogue-function= | the key grammar, in place of one line per key                          |
+| =org-records-mcp-allowed-files=           | nil, so views run over =org-agenda-files=                              |
+| =org-records-mcp-file-scope-override=     | t, so a call may name any Org file                                     |
 
 A key belonging to a project that left the registry goes with it. With the
 flag off, agile-gtd leaves every org-records-mcp variable as it is.

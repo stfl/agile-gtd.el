@@ -383,6 +383,54 @@ Its undated step is not pulled along: it ranks where its own cookie puts it."
       (should (eq (agile-gtd-org-records-mcp-test-computed due 'blocked) t))
       (should (<= (agile-gtd-org-records-mcp-test-computed due 'rank) 0)))))
 
+(ert-deftest agile-gtd-org-records-mcp-nodes-carry-their-breadcrumbs ()
+  "A node's `breadcrumbs' name its parent by title, link and level.
+A top-level node answers an empty array rather than leaving the field out."
+  (agile-gtd-org-records-mcp-test-with-fixtures
+    (let* ((step (agile-gtd-org-records-mcp-test-node "work-next" "Work project step"))
+           (crumbs (agile-gtd-org-records-mcp-test-computed step 'breadcrumbs)))
+      (should (= (length crumbs) 1))
+      (should (equal (alist-get 'title (aref crumbs 0)) "Work project"))
+      (should (equal (alist-get 'link (aref crumbs 0))
+                     (concat "file:"
+                             (abbreviate-file-name
+                              (expand-file-name "todo.org" org-directory))
+                             "::*Work project")))
+      (should (= (alist-get 'level (aref crumbs 0)) 1)))
+    (let ((top (agile-gtd-org-records-mcp-test-node "work-next" "Work action")))
+      (should (equal (agile-gtd-org-records-mcp-test-computed top 'breadcrumbs) [])))))
+
+(ert-deftest agile-gtd-org-records-mcp-breadcrumbs-run-outermost-first ()
+  "Every ancestor is a crumb, outermost first; the node itself is not one.
+An ancestor with an ID is linked by it, and a section without a keyword
+counts as much as a task."
+  (agile-gtd-test-with-sandbox
+    (agile-gtd-enable)
+    (let ((file (expand-file-name "deep.org" org-directory)))
+      (with-temp-file file
+        (insert "* Section\n"
+                "** EPIC Epic\n:PROPERTIES:\n:ID:       epic-id\n:END:\n"
+                "*** PROJ [#B] Project :tag:\n"
+                "**** NEXT Step\n"))
+      (with-current-buffer (find-file-noselect file)
+        (unwind-protect
+            (progn
+              (goto-char (point-min))
+              (re-search-forward "^\\*\\*\\*\\* NEXT Step")
+              (should (equal (agile-gtd--item-breadcrumbs)
+                             `[((title . "Section")
+                                (link . ,(concat "file:" (abbreviate-file-name file)
+                                                 "::*Section"))
+                                (level . 1))
+                               ((title . "Epic") (link . "id:epic-id") (level . 2))
+                               ((title . "Project")
+                                (link . ,(concat "file:" (abbreviate-file-name file)
+                                                 "::*Project"))
+                                (level . 3))]))
+              (goto-char (point-min))
+              (should (equal (agile-gtd--item-breadcrumbs) [])))
+          (kill-buffer))))))
+
 
 ;;; Refusals
 

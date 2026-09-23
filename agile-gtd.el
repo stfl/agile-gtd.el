@@ -233,8 +233,9 @@ When nil, derive it from `agile-gtd-priority-default'."
 (defcustom agile-gtd-enable-org-records-mcp t
   "Whether `agile-gtd-refresh' should configure org-records-mcp.
 When non-nil, every refresh generates one org-records-mcp view per key and merges
-them into `org-records-mcp-views', merges the `rank', `parent-priority' and
-`blocked' computed fields into `org-records-mcp-computed-fields', sorts views by
+them into `org-records-mcp-views', merges the `rank', `parent-priority',
+`blocked' and `breadcrumbs' computed fields into
+`org-records-mcp-computed-fields', sorts views by
 rank, describes the keys through `org-records-mcp-view-catalogue-function', and
 sets `org-records-mcp-allowed-files' to nil and `org-records-mcp-file-scope-override' to
 t.  Views and computed fields under other names are left alone.
@@ -1670,11 +1671,31 @@ A computed field answering nil is left out of a node, and a missing
 `blocked\' reads as not known rather than as not blocked."
   (if (org-entry-blocked-p) t :json-false))
 
+(defun agile-gtd--item-breadcrumbs ()
+  "Return the ancestors of the Org item at point, outermost first.
+The value is a vector of alists carrying `title', `link' and `level'.
+Title and link are the ones org-records-mcp gives the ancestor itself,
+so a crumb's link reads that heading.  The node itself is no crumb.
+A top-level heading, or the file, answers an empty vector: a computed
+field answering nil is left out of a node, and a missing
+`breadcrumbs' reads as not known rather than as having no parent."
+  (let (crumbs)
+    (org-with-wide-buffer
+     (unless (org-before-first-heading-p)
+       (org-back-to-heading t)
+       (while (org-up-heading-safe)
+         (push `((title . ,(org-records-mcp--title-at-point))
+                 (link . ,(org-records-mcp--link-at-point))
+                 (level . ,(org-outline-level)))
+               crumbs))))
+    (vconcat crumbs)))
+
 (defun agile-gtd--org-records-mcp-computed-fields ()
   "Return the computed fields agile-gtd gives every org-records-mcp node."
   (list (cons 'rank #'agile-gtd--item-rank)
         (cons 'parent-priority #'agile-gtd--direct-parent-priority)
-        (cons 'blocked #'agile-gtd--item-blocked)))
+        (cons 'blocked #'agile-gtd--item-blocked)
+        (cons 'breadcrumbs #'agile-gtd--item-breadcrumbs)))
 
 (defun agile-gtd--join-words (words)
   "Return WORDS joined as prose: \"a\", \"a and b\", \"a, b and c\"."
@@ -1731,7 +1752,8 @@ range.  A key is [<area>-]<view>[-<range>], for example private-next, \
                      (string-join defaults ", and at ")
                      "; backlog runs at all.  Every result is sorted by rank, \
 most urgent first, and each node carries the computed fields rank, \
-parent-priority and blocked.")
+parent-priority, blocked and breadcrumbs: its ancestors, outermost first, \
+each with title, link and level.")
       t))))
 
 (defvar agile-gtd--org-records-mcp-view-names nil
