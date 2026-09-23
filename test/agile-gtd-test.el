@@ -42,7 +42,50 @@
           (org-records-mcp-query-sort-fn nil)
           (org-records-mcp-view-catalogue-function nil)
           (org-records-mcp-allowed-files nil)
-          (org-records-mcp-file-scope-override nil))
+          (org-records-mcp-file-scope-override nil)
+          (agile-gtd-enable-org-settings t)
+          (org-edna-mode nil)
+          (org-blocker-hook nil)
+          (org-trigger-hook nil)
+          (org-enforce-todo-dependencies nil)
+          (org-enforce-todo-checkbox-dependencies nil)
+          (org-agenda-dim-blocked-tasks t)
+          (org-log-into-drawer org-log-into-drawer)
+          (org-log-done org-log-done)
+          (org-log-repeat org-log-repeat)
+          (org-log-redeadline org-log-redeadline)
+          (org-log-reschedule org-log-reschedule)
+          (org-log-state-notes-insert-after-drawers
+           org-log-state-notes-insert-after-drawers)
+          (org-archive-location org-archive-location)
+          (org-modules org-modules)
+          (org-habit-show-habits org-habit-show-habits)
+          (org-habit-preceding-days org-habit-preceding-days)
+          (org-habit-following-days org-habit-following-days)
+          (org-agenda-use-time-grid org-agenda-use-time-grid)
+          (org-agenda-skip-scheduled-if-done org-agenda-skip-scheduled-if-done)
+          (org-agenda-skip-unavailable-files org-agenda-skip-unavailable-files)
+          (org-agenda-skip-deadline-if-done org-agenda-skip-deadline-if-done)
+          (org-agenda-skip-timestamp-if-done org-agenda-skip-timestamp-if-done)
+          (org-agenda-start-on-weekday org-agenda-start-on-weekday)
+          (org-agenda-span org-agenda-span)
+          (org-agenda-start-day org-agenda-start-day)
+          (org-deadline-warning-days org-deadline-warning-days)
+          (org-agenda-show-future-repeats org-agenda-show-future-repeats)
+          (org-agenda-skip-deadline-prewarning-if-scheduled
+           org-agenda-skip-deadline-prewarning-if-scheduled)
+          (org-agenda-tags-todo-honor-ignore-options
+           org-agenda-tags-todo-honor-ignore-options)
+          (org-agenda-skip-scheduled-delay-if-deadline
+           org-agenda-skip-scheduled-delay-if-deadline)
+          (org-agenda-skip-scheduled-if-deadline-is-shown
+           org-agenda-skip-scheduled-if-deadline-is-shown)
+          (org-agenda-skip-timestamp-if-deadline-is-shown
+           org-agenda-skip-timestamp-if-deadline-is-shown)
+          (org-agenda-todo-list-sublevels org-agenda-todo-list-sublevels)
+          (org-agenda-include-deadlines org-agenda-include-deadlines)
+          (org-use-property-inheritance org-use-property-inheritance)
+          (org-use-tag-inheritance org-use-tag-inheritance))
      (unwind-protect
          (progn
            ,@body)
@@ -76,6 +119,98 @@
       (should (equal org-stuck-projects (agile-gtd--stuck-projects-setting)))
       (should (assoc "P" org-capture-templates))
       (should (assoc "a" org-agenda-custom-commands)))))
+
+(ert-deftest agile-gtd-enable-applies-org-settings ()
+  "Enabling sets the Org options the workflow depends on."
+  (agile-gtd-test-with-sandbox
+    (agile-gtd-enable)
+    (ert-info ("Dependencies")
+      (should org-edna-mode)
+      (should (memq #'org-edna-blocker-function org-blocker-hook))
+      (should (memq #'org-edna-trigger-function org-trigger-hook))
+      (should-not org-enforce-todo-dependencies)
+      (should-not org-enforce-todo-checkbox-dependencies)
+      (should (eq org-agenda-dim-blocked-tasks 'invisible)))
+    (ert-info ("Logging")
+      (should (eq org-log-into-drawer t))
+      (should (eq org-log-done 'time+note))
+      (should (eq org-log-repeat 'time))
+      (should (eq org-log-redeadline 'time))
+      (should (eq org-log-reschedule 'time))
+      (should-not org-log-state-notes-insert-after-drawers))
+    (ert-info ("Archive and habits")
+      (should (equal org-archive-location
+                     (expand-file-name "archive/%s::datetree" org-directory)))
+      (should (featurep 'org-habit))
+      (should (memq 'org-habit org-modules))
+      (should (eq org-habit-show-habits t))
+      (should (= org-habit-preceding-days 14))
+      (should (= org-habit-following-days 7)))
+    (ert-info ("Agenda behaviour")
+      (should (eq org-agenda-span 'day))
+      (should (equal org-agenda-start-day "-0d"))
+      (should-not org-agenda-start-on-weekday)
+      (should (= org-deadline-warning-days 7))
+      (should (eq org-agenda-skip-unavailable-files t))
+      (should (eq org-agenda-skip-scheduled-if-done t))
+      (should (eq org-agenda-skip-deadline-if-done t))
+      (should (eq org-agenda-skip-timestamp-if-done t))
+      (should (eq org-agenda-skip-deadline-prewarning-if-scheduled t))
+      (should (eq org-agenda-skip-scheduled-delay-if-deadline t))
+      (should (eq org-agenda-skip-scheduled-if-deadline-is-shown t))
+      (should (eq org-agenda-skip-timestamp-if-deadline-is-shown t))
+      (should (eq org-agenda-show-future-repeats t))
+      (should (eq org-agenda-tags-todo-honor-ignore-options t))
+      (should (eq org-agenda-todo-list-sublevels t))
+      (should (eq org-agenda-include-deadlines t))
+      (should (eq org-agenda-use-time-grid t)))
+    (ert-info ("Inheritance")
+      (should (eq org-use-property-inheritance t))
+      (should (eq org-use-tag-inheritance t)))))
+
+(ert-deftest agile-gtd-enable-removes-org-own-blockers ()
+  "Org's own dependency blockers leave `org-blocker-hook' with their options.
+Setting the options is not enough: Org installs those blockers from the
+options' Customize setters, which a plain assignment does not run."
+  (agile-gtd-test-with-sandbox
+    (setq org-enforce-todo-dependencies t
+          org-enforce-todo-checkbox-dependencies t)
+    (add-hook 'org-blocker-hook #'org-block-todo-from-children-or-siblings-or-parent)
+    (add-hook 'org-blocker-hook #'org-block-todo-from-checkboxes)
+    (agile-gtd-enable)
+    (should (equal org-blocker-hook (list #'org-edna-blocker-function)))))
+
+(ert-deftest agile-gtd-enable-org-settings-archive-follows-org-directory ()
+  "The archive location is read from `org-directory' on every refresh."
+  (agile-gtd-test-with-sandbox
+    (agile-gtd-enable)
+    (let ((org-directory (expand-file-name "elsewhere" org-directory)))
+      (agile-gtd-refresh)
+      (should (equal org-archive-location
+                     (expand-file-name "archive/%s::datetree" org-directory))))))
+
+(ert-deftest agile-gtd-refresh-applies-org-settings-once ()
+  "Refreshing again adds no second habit module or Edna hook."
+  (agile-gtd-test-with-sandbox
+    (agile-gtd-enable)
+    (agile-gtd-refresh)
+    (should (= 1 (cl-count 'org-habit org-modules)))
+    (should (= 1 (cl-count #'org-edna-blocker-function org-blocker-hook)))
+    (should (= 1 (cl-count #'org-edna-trigger-function org-trigger-hook)))))
+
+(ert-deftest agile-gtd-enable-org-settings-off-leaves-org-alone ()
+  "With `agile-gtd-enable-org-settings' off, enabling touches none of them."
+  (agile-gtd-test-with-sandbox
+    (let* ((agile-gtd-enable-org-settings nil)
+           (variables '(org-agenda-dim-blocked-tasks org-log-into-drawer
+                        org-log-done org-archive-location org-modules
+                        org-habit-preceding-days org-agenda-span
+                        org-deadline-warning-days org-use-property-inheritance))
+           (before (mapcar #'symbol-value variables)))
+      (agile-gtd-enable)
+      (should-not org-edna-mode)
+      (should-not org-blocker-hook)
+      (should (equal (mapcar #'symbol-value variables) before)))))
 
 (ert-deftest agile-gtd-refresh-does-not-duplicate-workflow-tags ()
   (agile-gtd-test-with-sandbox

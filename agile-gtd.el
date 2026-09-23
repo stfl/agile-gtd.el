@@ -18,7 +18,9 @@
 (require 'org-agenda)
 (require 'org-archive)
 (require 'org-capture)
+(require 'org-edna)
 (require 'org-element)
+(require 'org-habit)
 (require 'org-id)
 (require 'org-records-mcp)
 (require 'org-ql)
@@ -218,6 +220,16 @@ rank, describes the keys through `org-records-mcp-view-catalogue-function', and
 sets `org-records-mcp-allowed-files' to nil and `org-records-mcp-file-scope-override' to
 t.  Views and computed fields under other names are left alone.
 Starting the MCP server stays with the user\\='s configuration."
+  :type 'boolean
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-enable-org-settings t
+  "Whether `agile-gtd-refresh' should apply the Org settings the workflow needs.
+When non-nil, every refresh turns on `org-edna-mode', adds `org-habit' to
+`org-modules', turns off Org\='s own TODO dependency checks and sets the
+logging, archive, habit, agenda and inheritance options the views rely
+on.  docs/org-settings.org lists each value and why it is needed.  To
+change one of them, set it after `agile-gtd-enable' runs."
   :type 'boolean
   :group 'agile-gtd)
 
@@ -1729,10 +1741,71 @@ org-view description when a client connects."
             org-records-mcp-allowed-files nil
             org-records-mcp-file-scope-override t))))
 
+(defun agile-gtd--org-settings ()
+  "Return the Org options the workflow depends on, as (VARIABLE . VALUE).
+docs/org-settings.org gives the reason for each."
+  `(;; Blocking is org-edna's alone: Org's own checks would block every
+    ;; project with open children, and hide it from the agenda.
+    (org-enforce-todo-dependencies . nil)
+    (org-enforce-todo-checkbox-dependencies . nil)
+    (org-agenda-dim-blocked-tasks . invisible)
+    ;; Logging
+    (org-log-into-drawer . t)
+    (org-log-done . time+note)
+    (org-log-repeat . time)
+    (org-log-redeadline . time)
+    (org-log-reschedule . time)
+    (org-log-state-notes-insert-after-drawers . nil)
+    ;; Archive and habits
+    (org-archive-location . ,(agile-gtd--expand-org-path "archive/%s::datetree"))
+    (org-habit-show-habits . t)
+    (org-habit-preceding-days . 14)
+    (org-habit-following-days . 7)
+    ;; Agenda behaviour
+    (org-agenda-use-time-grid . t)
+    (org-agenda-skip-scheduled-if-done . t)
+    (org-agenda-skip-unavailable-files . t)
+    (org-agenda-skip-deadline-if-done . t)
+    (org-agenda-skip-timestamp-if-done . t)
+    (org-agenda-start-on-weekday . nil)
+    (org-agenda-span . day)
+    (org-agenda-start-day . "-0d")
+    (org-deadline-warning-days . 7)
+    (org-agenda-show-future-repeats . t)
+    (org-agenda-skip-deadline-prewarning-if-scheduled . t)
+    (org-agenda-tags-todo-honor-ignore-options . t)
+    (org-agenda-skip-scheduled-delay-if-deadline . t)
+    (org-agenda-skip-scheduled-if-deadline-is-shown . t)
+    (org-agenda-skip-timestamp-if-deadline-is-shown . t)
+    (org-agenda-todo-list-sublevels . t)
+    (org-agenda-include-deadlines . t)
+    ;; Inheritance: areas, clients and SOMEDAY arrive through filetags and
+    ;; parents.
+    (org-use-property-inheritance . t)
+    (org-use-tag-inheritance . t)))
+
+(defun agile-gtd--apply-org-settings ()
+  "Apply the Org settings the workflow depends on.
+Does nothing when `agile-gtd-enable-org-settings' is off.  Default values
+are set rather than whatever binding is current: a file\='s startup options
+make some of these local to its buffer, and a refresh run from that buffer
+would otherwise change it alone."
+  (when agile-gtd-enable-org-settings
+    (org-edna-mode 1)
+    (pcase-dolist (`(,variable . ,value) (agile-gtd--org-settings))
+      (set-default variable value))
+    ;; Org installs its own blockers from the Customize setters of the two
+    ;; enforce options, which `set-default' does not run.
+    (remove-hook 'org-blocker-hook
+                 #'org-block-todo-from-children-or-siblings-or-parent)
+    (remove-hook 'org-blocker-hook #'org-block-todo-from-checkboxes)
+    (add-to-list 'org-modules 'org-habit)))
+
 (defun agile-gtd-refresh ()
   "Refresh all derived Agile GTD configuration."
   (interactive)
   (agile-gtd--validate-configuration)
+  (agile-gtd--apply-org-settings)
   (agile-gtd--apply-priorities)
   (agile-gtd--apply-org-modern-visuals)
   (agile-gtd--apply-todo-keywords)
