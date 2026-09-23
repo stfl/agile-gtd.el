@@ -78,7 +78,7 @@ DEADLINE: <2026-04-06 Mon>
 
 (ert-deftest agile-gtd-view-ranges-run-narrowest-to-widest ()
   "The range vocabulary is ordered, so wider and narrower are unambiguous."
-  (should (equal agile-gtd-view-ranges '(today sprint backlog all someday))))
+  (should (equal agile-gtd-view-ranges '(today sprint upcoming all someday))))
 
 (ert-deftest agile-gtd-view-range-cutoffs-are-ranks ()
   "Every range cuts off at a rank, `today' at 0 and the rest at a band top.
@@ -86,7 +86,7 @@ One number per range is what lets the filter and the rank groups agree:
 `today' closes where the \"Today & Overdue\" group closes, and every other
 range where its cutoff priority\='s group does."
   (should (= (agile-gtd-view-range-cutoff 'today) 0))
-  (dolist (range '(sprint backlog all someday))
+  (dolist (range '(sprint upcoming all someday))
     (ert-info ((format "range=%s" range))
       (should (= (agile-gtd-view-range-cutoff range)
                  (agile-gtd--rank-band-top
@@ -104,7 +104,7 @@ range where its cutoff priority\='s group does."
           (agile-gtd-priority-default ?E)
           (agile-gtd-priority-lowest ?I))
       (should (= (agile-gtd-view-range-priority 'sprint)  ?C))
-      (should (= (agile-gtd-view-range-priority 'backlog) ?E))
+      (should (= (agile-gtd-view-range-priority 'upcoming) ?E))
       (should (= (agile-gtd-view-range-priority 'all)     ?I))
       (should (= (agile-gtd-view-range-priority 'someday) ?I))))
   (ert-info ("A reconfigured priority scale moves every cutoff with it")
@@ -112,7 +112,7 @@ range where its cutoff priority\='s group does."
           (agile-gtd-priority-default ?D)
           (agile-gtd-priority-lowest ?G))
       (should (= (agile-gtd-view-range-priority 'sprint)  ?B))
-      (should (= (agile-gtd-view-range-priority 'backlog) ?D))
+      (should (= (agile-gtd-view-range-priority 'upcoming) ?D))
       (should (= (agile-gtd-view-range-priority 'all)     ?G))
       (should (= (agile-gtd-view-range-priority 'someday) ?G))))
   (ert-info ("An unknown range is refused")
@@ -123,7 +123,7 @@ range where its cutoff priority\='s group does."
   (should (agile-gtd-view-range-parked-p 'someday))
   (should-not (agile-gtd-view-range-parked-p 'today))
   (should-not (agile-gtd-view-range-parked-p 'sprint))
-  (should-not (agile-gtd-view-range-parked-p 'backlog))
+  (should-not (agile-gtd-view-range-parked-p 'upcoming))
   (should-not (agile-gtd-view-range-parked-p 'all)))
 
 (ert-deftest agile-gtd-agenda-query-backlog-returns-sexp ()
@@ -293,7 +293,7 @@ Excludes done items and plain (stateless) section headings."
       (should (equal (mapcar (lambda (a) (plist-get a :name)) areas)
                      '(nil "private" "work" "alpha" "beta")))
       (should (equal (mapcar (lambda (a) (plist-get a :next-range)) areas)
-                     '(sprint sprint backlog backlog backlog)))
+                     '(sprint sprint upcoming upcoming upcoming)))
       (should (equal (mapcar (lambda (a) (car (plist-get a :command))) areas)
                      '("a" "pp" "ww" "wa" nil))))))
 
@@ -429,8 +429,8 @@ The band items carry one priority cookie each and nothing else — no
 schedule, no deadline, no parent — so the only thing that can decide
 whether one of them is on screen is the view range's priority cutoff.
 With the stock configuration those cutoffs are C for `sprint', E for
-`backlog' and I for `all', which makes D the first band outside
-`sprint' and F the first band outside `backlog'."
+`upcoming' and I for `all', which makes D the first band outside
+`sprint' and F the first band outside `upcoming'."
   (let ((today (format-time-string "%Y-%m-%d %a"))
         (tomorrow (format-time-string "%Y-%m-%d %a"
                     (time-add (current-time) (days-to-time 1)))))
@@ -470,10 +470,10 @@ With the stock configuration those cutoffs are C for `sprint', E for
             "* NEXT [#F] Band F item\n\n"
             "* NEXT [#I] Band I item\n\n"
             ;; No cookie at all: Org reads it as the default priority, and so
-            ;; must the filter — in from `backlog' onwards, out of `sprint'.
+            ;; must the filter — in from `upcoming' onwards, out of `sprint'.
             "* NEXT Uncookied item\n\n"
             ;; A bare action under a low-cookied project.  It ranks where its
-            ;; parent puts it, so it must leave `backlog' at the same cutoff a
+            ;; parent puts it, so it must leave `upcoming' at the same cutoff a
             ;; [#G] cookie of its own would take it out at.  Reading a missing
             ;; cookie as the default and stopping there is the bug this pins.
             "* PROJ [#G] Band G parent project\n"
@@ -877,21 +877,21 @@ therefore empty."
     (should (string-match-p "Next Actions \\[sprint\\]" agenda-text))
     (should-not (string-match-p "Uncookied item" agenda-text))))
 
-(ert-deftest agile-gtd-agenda-work-view-opens-at-the-backlog-range ()
-  "Work Agenda (\"ww\") opens at `backlog', so unprioritised work is visible."
+(ert-deftest agile-gtd-agenda-work-view-opens-at-the-upcoming-range ()
+  "Work Agenda (\"ww\") opens at `upcoming', so unprioritised work is visible."
   (agile-gtd-agenda-test-build-view "ww"
-    (should (eq (agile-gtd-agenda-test-current-range) 'backlog))
-    (should (string-match-p "Next Actions \\[backlog\\]" agenda-text))
+    (should (eq (agile-gtd-agenda-test-current-range) 'upcoming))
+    (should (string-match-p "Next Actions \\[upcoming\\]" agenda-text))
     (should (string-match-p "Work uncookied task" agenda-text))
     (should-not (string-match-p "Work band F task" agenda-text))))
 
-(ert-deftest agile-gtd-agenda-project-view-opens-at-the-backlog-range ()
-  "A generated per-project agenda opens at `backlog', like the work agenda."
+(ert-deftest agile-gtd-agenda-project-view-opens-at-the-upcoming-range ()
+  "A generated per-project agenda opens at `upcoming', like the work agenda."
   (agile-gtd-agenda-test-build-view-with
       ((agile-gtd-projects '((:tag "acme" :name "ACME Corp" :key ?a))))
       "wa"
-    (should (eq (agile-gtd-agenda-test-current-range) 'backlog))
-    (should (string-match-p "Next Actions \\[backlog\\]" agenda-text))
+    (should (eq (agile-gtd-agenda-test-current-range) 'upcoming))
+    (should (string-match-p "Next Actions \\[upcoming\\]" agenda-text))
     (should (string-match-p "Acme uncookied job" agenda-text))
     (should-not (string-match-p "Acme band F job" agenda-text))))
 
@@ -908,16 +908,16 @@ therefore empty."
     (should (string-match-p "Backlog \\[all\\]" agenda-text))
     (should (string-match-p "Work band F task" agenda-text))))
 
-(ert-deftest agile-gtd-agenda-item-without-a-cookie-joins-at-the-backlog-range ()
-  "An item carrying no priority cookie is out of `sprint' and in from `backlog'.
+(ert-deftest agile-gtd-agenda-item-without-a-cookie-joins-at-the-upcoming-range ()
+  "An item carrying no priority cookie is out of `sprint' and in from `upcoming'.
 Org reads a missing cookie as exactly the default priority, and so does the
 rank code; this is the filter agreeing with both."
   (agile-gtd-agenda-test-build-view "a"
     (ert-info ("sprint leaves it out")
       (should-not (string-match-p "Uncookied item" agenda-text)))
-    (ert-info ("backlog takes it in")
+    (ert-info ("upcoming takes it in")
       (should (string-match-p "Uncookied item"
-                              (agile-gtd-agenda-test-rotate-to 'backlog))))))
+                              (agile-gtd-agenda-test-rotate-to 'upcoming))))))
 
 (ert-deftest agile-gtd-agenda-sprint-range-boundary ()
   "At `sprint' the cutoff band is on screen and the band past it is not."
@@ -926,11 +926,11 @@ rank code; this is the filter agreeing with both."
     (should (string-match-p "Band C item" agenda-text))
     (should-not (string-match-p "Band D item" agenda-text))))
 
-(ert-deftest agile-gtd-agenda-backlog-range-boundary ()
-  "At `backlog' the default band is on screen and the band past it is not."
+(ert-deftest agile-gtd-agenda-upcoming-range-boundary ()
+  "At `upcoming' the default band is on screen and the band past it is not."
   (agile-gtd-agenda-test-build-view "a"
-    (let ((text (agile-gtd-agenda-test-rotate-to 'backlog)))
-      (should (eq (agile-gtd-agenda-test-current-range) 'backlog))
+    (let ((text (agile-gtd-agenda-test-rotate-to 'upcoming)))
+      (should (eq (agile-gtd-agenda-test-current-range) 'upcoming))
       (should (string-match-p "Band D item" text))
       (should (string-match-p "Band E item" text))
       (should-not (string-match-p "Band F item" text)))))
@@ -950,7 +950,7 @@ rank code; this is the filter agreeing with both."
 The parked items carry [#A], so no priority cutoff can account for their
 absence — only the someday and schedule gates can."
   (agile-gtd-agenda-test-build-view "a"
-    (dolist (range '(today sprint backlog all))
+    (dolist (range '(today sprint upcoming all))
       (ert-info ((format "range=%s" range))
         (let ((text (agile-gtd-agenda-test-rotate-to range)))
           (should-not (string-match-p "Parked someday item" text))
@@ -1003,8 +1003,8 @@ in an agenda view, which filters future schedules as a second, invisible gate."
       (with-current-buffer (get-buffer org-agenda-buffer-name)
         (agile-gtd-agenda-wider-range))
       (let ((text (agile-gtd-agenda-test-agenda-text)))
-        (should (eq (agile-gtd-agenda-test-current-range) 'backlog))
-        (should (string-match-p "Next Actions \\[backlog\\]" text))
+        (should (eq (agile-gtd-agenda-test-current-range) 'upcoming))
+        (should (string-match-p "Next Actions \\[upcoming\\]" text))
         (should (string-match-p "Uncookied item" text))))
     (ert-info ("one step back")
       (with-current-buffer (get-buffer org-agenda-buffer-name)
@@ -1073,10 +1073,10 @@ Adding `today' to the rotation changes nothing until someone switches to it,
 and reset never lands on it."
   (dolist (case '(("a" sprint "Next Actions")
                   ("pp" sprint "Next Actions")
-                  ("ww" backlog "Next Actions")
+                  ("ww" upcoming "Next Actions")
                   ("pb" all "Backlog")
                   ("wb" all "Backlog")
-                  ("wa" backlog "Next Actions")))
+                  ("wa" upcoming "Next Actions")))
     (pcase-let ((`(,key ,declared ,block) case))
       (ert-info ((format "command %s" key))
         (agile-gtd-agenda-test-build-view-with
@@ -1200,7 +1200,7 @@ stuck project in the lowest band shows even in the narrowest view."
         (should (string-match-p "Band I stuck project" section)))
       (ert-info ("The header takes no range")
         (should-not (string-match-p "Stuck Projects \\[" section)))
-      (dolist (range '(today backlog all someday))
+      (dolist (range '(today upcoming all someday))
         (ert-info ((format "range=%s" range))
           (should (equal (agile-gtd-agenda-test-block-section
                           (agile-gtd-agenda-test-rotate-to range)
@@ -1228,7 +1228,7 @@ and the Next Actions block must not name a task the day block already has."
                 (agile-gtd-agenda-test-agenda-text) "Day-agenda")))
       (should day)
       (should (string-match-p "Scheduled today" day))
-      (dolist (range '(today backlog all someday))
+      (dolist (range '(today upcoming all someday))
         (ert-info ((format "range=%s" range))
           (let ((text (agile-gtd-agenda-test-rotate-to range)))
             (should (equal (agile-gtd-agenda-test-block-section text "Day-agenda")

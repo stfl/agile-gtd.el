@@ -11,7 +11,7 @@ It treats Org headings as planning units with explicit execution semantics:
 - =NEXT= and =WAIT= can also exist without a project; these are standalone next actions.
 - =TODO= is captured input, not yet clarified or committed.
 - Priorities =A..C= are considered in the current sprint.
-- Priorities =D..E= are next in the backlog
+- Priorities =D..E= are considered in the upcoming range.
 - No assigned priority is considered between =E= and =F=, and counts as
   exactly the default priority (~agile-gtd-priority-default~) wherever an
   agenda view filters by range; see [[*View Ranges][View Ranges]].
@@ -21,7 +21,7 @@ It treats Org headings as planning units with explicit execution semantics:
 - =SOMEDAY= tag plus =SCHEDULED= date turns an item into a tickler that resurfaces at the given date.
   When the tickler item resurfaces again, it shall be scheduled or assigned a priority accordingly.
 - Tasks with a =DEADLINE= within 7 days are considered in the current sprint.
-- Tasks with a =DEADLINE= within 14 days are considered next in the backlog.
+- Tasks with a =DEADLINE= within 14 days are considered within the upcoming range.
 - Tasks with a =DEADLINE= after 14 days are considered below the default priority
 
 Headings without a TODO keyword are structural headings only.
@@ -142,18 +142,18 @@ priority, and optionally adding a deadline.
 * View Ranges
 
 Agenda commands filter their Next Actions and Backlog blocks through one of
-five named ranges, ordered narrowest to widest: =today -> sprint -> backlog ->
+five named ranges, ordered narrowest to widest: =today -> sprint -> upcoming ->
 all -> someday=. Each range's cutoff is a rank. =today= closes at rank 0; every
 other range closes at the band of an existing priority defcustom, never at a
 hard-coded letter:
 
-| Range     | Cutoff                            | Shows                                                                                                                    |
-|-----------+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------|
-| =today=   | rank 0                            | Items with any deadline within two days (the =[#A]= deadline window), due today, overdue, or scheduled today or earlier. |
-| =sprint=  | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                                                           |
-| =backlog= | ~agile-gtd-priority-default~      | The above, plus everything down to the default priority, including every item with no priority cookie.                   |
-| =all=     | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded.                                  |
-| =someday= | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                                                        |
+| Range      | Cutoff                            | Shows                                                                                                                    |
+|------------+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------|
+| =today=    | rank 0                            | Items with any deadline within two days (the =[#A]= deadline window), due today, overdue, or scheduled today or earlier. |
+| =sprint=   | ~agile-gtd-sprint-prio-threshold~ | Explicitly prioritised items at or above the sprint threshold.                                                           |
+| =upcoming= | ~agile-gtd-priority-default~      | The above, plus everything down to the default priority, including every item with no priority cookie.                   |
+| =all=      | ~agile-gtd-priority-lowest~       | The above, plus every remaining priority band. SOMEDAY and tickler items stay excluded.                                  |
+| =someday=  | ~agile-gtd-priority-lowest~       | The above, plus SOMEDAY and tickler items, grouped at the bottom.                                                        |
 
 *** What a cutoff actually tests
 
@@ -172,13 +172,13 @@ an approaching deadline, and a schedule that has come due.
 Two consequences are worth stating plainly.
 
 A missing priority cookie counts as exactly ~agile-gtd-priority-default~ (=E=
-by default; see [[*Priorities][Priorities]]).  The =backlog= range and every
+by default; see [[*Priorities][Priorities]]).  The =upcoming= range and every
 wider range therefore include every unprioritised item that has no other
 reason to rank lower; =sprint= does not, since its cutoff sits above the
 default.
 
 A cookie on the parent is such a reason.  A bare next action under a =[#G]=
-project is =G= work and leaves =backlog= at exactly the cutoff a =[#G]= cookie
+project is =G= work and leaves =upcoming= at exactly the cutoff a =[#G]= cookie
 of its own would take it out at.  Inheritance decides where an item is
 grouped, so it must decide whether the item is admitted too.
 
@@ -191,8 +191,8 @@ open at (see [[*Agenda commands][Agenda commands]] for the full command list):
 |----------+-----------------------+----------------|
 | =a=      | Main Agenda           | =sprint=       |
 | =pp=     | Private Agenda Today  | =sprint=       |
-| =ww=     | Work Agenda Today     | =backlog=      |
-| =w<key>= | Per-project agenda    | =backlog=      |
+| =ww=     | Work Agenda Today     | =upcoming=     |
+| =w<key>= | Per-project agenda    | =upcoming=     |
 | =pb=     | Private Backlog       | =all=          |
 | =wb=     | Work Backlog          | =all=          |
 
@@ -221,7 +221,7 @@ Rotation clamps at both ends of the list instead of wrapping, and messages
 when a keystroke has nothing to do (for example, "Already at the widest range
 (someday)"). Each rotation messages the new range and redraws the agenda
 immediately; the active range is also appended to the block header (for
-example, "Next Actions [backlog]"), so an empty screen shows whether there is
+example, "Next Actions [upcoming]"), so an empty screen shows whether there is
 nothing to do or whether the range is simply narrow.
 
 Rotation is buffer-local to the open agenda: widening one view never widens
@@ -432,7 +432,7 @@ days out while its rank keeps it in Next Actions until the last two.
 The backlogs (=pb=, =wb=) list projects and standalone =NEXT= / =WAIT= items,
 blocked ones included and dimmed: a backlog is what there is to plan.
 
-Which range — =today=, =sprint=, =backlog=, =all=, or =someday= — each command's Next
+Which range — =today=, =sprint=, =upcoming=, =all=, or =someday= — each command's Next
 Actions and Backlog blocks open at, and how to rotate between them, is
 documented in [[*View Ranges][View Ranges]].
 
@@ -475,9 +475,9 @@ an unknown key with the names that exist.
   in =agile-gtd-projects=, with or without a =:key=.
 - /view/: =next=, =backlog= or =stuck=. =inbox= and =tangling= exist once and
   take neither area nor range.
-- /range/: =today=, =sprint=, =backlog=, =all= or =someday= (see [[*View Ranges][View Ranges]]),
+- /range/: =today=, =sprint=, =upcoming=, =all= or =someday= (see [[*View Ranges][View Ranges]]),
   optional on =next= and =backlog=. Without one, a key runs where the agenda
-  opens: =next= at =sprint= for everything and =private=, at =backlog= for
+  opens: =next= at =sprint= for everything and =private=, at =upcoming= for
   =work= and every project; =backlog= at =all=.
 
 Every area gets thirteen keys: =next= and =backlog= at each range and without
@@ -490,8 +490,8 @@ one, and =stuck=. With three projects registered — say =alpha=, =beta= and
 | =next=                | what to work on now: the sprint across every area              |
 | =next-today=          | everything inside =today=, in any open state, blocked or not   |
 | =private-next=        | the private next actions, at =sprint=                          |
-| =work-next=           | the work next actions, at =backlog=                            |
-| =alpha-next=          | one project's next actions, at =backlog=                       |
+| =work-next=           | the work next actions, at =upcoming=                           |
+| =alpha-next=          | one project's next actions, at =upcoming=                      |
 | =alpha-next-today=    | what is due today in one project                               |
 | =work-backlog=        | the work backlog at every priority, blocked items included     |
 | =beta-backlog-sprint= | the high-priority part of one project's backlog                |

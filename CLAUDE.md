@@ -43,7 +43,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion t
 - Sequence: `TODO → NEXT → WAIT → PROJ → EPIC | DONE, IDEA, KILL`
 - Public accessors: `agile-gtd-project-keyword`, `agile-gtd-action-keywords`
 
-**View ranges** (`agile-gtd-view-ranges`: today -> sprint -> backlog -> all -> someday)
+**View ranges** (`agile-gtd-view-ranges`: today -> sprint -> upcoming -> all -> someday)
 - `agile-gtd-view-range-cutoff` is each range's rank cutoff: 0 for `today`, the cutoff priority's `agile-gtd--rank-band-top` for the rest. `today` has no priority (`agile-gtd-view-range-priority` returns nil for it)
 - `agile-gtd-within-range` is the org-ql predicate every ranged query filters on; it takes a range name (quoted by its normalizer) or a priority character, and tests `agile-gtd--item-rank` against the cutoff
 - `today` holds rank ≤ 0: any deadline within two days (the [#A] deadline window), due today, overdue, or scheduled today or earlier. A deadline within two days ranks 0 whatever the cookie; it lines up with the "Today & Overdue" rank group. The day block's `org-deadline-warning-days` is that same window, so an item `hide-today` removes is always in the day block

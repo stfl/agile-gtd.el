@@ -36,16 +36,16 @@ Half the entries here exist only to be that pair."
               (format-time-string
                "%Y-%m-%d %a" (time-add (current-time) (days-to-time days))))))
     (concat
-     ;; Inside `backlog' by their own cookie.
+     ;; Inside `upcoming' by their own cookie.
      "* NEXT [#B] Own cookie B\n\n"
      "* NEXT [#E] Own cookie E\n\n"
-     ;; Inside `backlog' by carrying no cookie at all.
+     ;; Inside `upcoming' by carrying no cookie at all.
      "* NEXT Bare no cookie\n\n"
-     ;; Outside `backlog' by their own cookie.  These were always correct.
+     ;; Outside `upcoming' by their own cookie.  These were always correct.
      "* NEXT [#F] Own cookie F\n\n"
      "* NEXT [#G] Own cookie G\n\n"
-     ;; Outside `backlog' by their parent's cookie, carrying none themselves.
-     ;; These are the entries the `backlog' range used to show.
+     ;; Outside `upcoming' by their parent's cookie, carrying none themselves.
+     ;; These are the entries the `upcoming' range used to show.
      "* PROJ [#F] Parent F project\n"
      "** NEXT Child of F parent\n\n"
      "* PROJ [#G] Parent G project\n"
@@ -137,7 +137,7 @@ band\\='s reach leaves it there instead of sinking it past every priority."
 (ert-deftest agile-gtd-rank-a-parent-cookie-still-beats-the-default ()
   "Inheriting a low cookie is the point: it must outrank the bare default.
 Were a parent's cookie replaced by the default, every entry under a low
-project would be pulled into `backlog' — the opposite of the bug."
+project would be pulled into `upcoming' — the opposite of the bug."
   (should (= (agile-gtd--backlog-rank nil ?G nil) (agile-gtd--prio-rank ?G)))
   (should (> (agile-gtd--backlog-rank nil ?G nil) (agile-gtd--rank-default))))
 
@@ -180,43 +180,43 @@ A priority character is still accepted and cuts at that priority\='s band."
       (should (equal (agile-gtd-range-test-ranked
                       buffer '(and (todo) (agile-gtd-within-range ?E)))
                      (agile-gtd-range-test-ranked
-                      buffer '(and (todo) (agile-gtd-within-range backlog))))))))
+                      buffer '(and (todo) (agile-gtd-within-range upcoming))))))))
 
-(ert-deftest agile-gtd-range-backlog-excludes-an-uncookied-child-of-a-low-project ()
-  "A bare entry under a [#F] or [#G] project is outside `backlog'.
+(ert-deftest agile-gtd-range-upcoming-excludes-an-uncookied-child-of-a-low-project ()
+  "A bare entry under a [#F] or [#G] project is outside `upcoming'.
 It ranks where its parent's cookie puts it, so the range that stops at the
 default priority must stop before it — exactly as it already does for an
 entry carrying that cookie itself."
   (agile-gtd-range-test-with-data
-    (let ((backlog (mapcar #'car (agile-gtd-range-test-ranked
+    (let ((upcoming (mapcar #'car (agile-gtd-range-test-ranked
                                   buffer (agile-gtd-agenda-query-next-actions
-                                          nil 'backlog))))
+                                          nil 'upcoming))))
           (all (mapcar #'car (agile-gtd-range-test-ranked
                               buffer (agile-gtd-agenda-query-next-actions
                                       nil 'all)))))
-      (ert-info ("Out of backlog, whether the cookie is its own or its parent's")
-        (should-not (member "Child of F parent" backlog))
-        (should-not (member "Child of G parent" backlog))
-        (should-not (member "Own cookie F" backlog))
-        (should-not (member "Own cookie G" backlog)))
+      (ert-info ("Out of upcoming, whether the cookie is its own or its parent's")
+        (should-not (member "Child of F parent" upcoming))
+        (should-not (member "Child of G parent" upcoming))
+        (should-not (member "Own cookie F" upcoming))
+        (should-not (member "Own cookie G" upcoming)))
       (ert-info ("All four come back once the range reaches the lowest priority")
         (should (member "Child of F parent" all))
         (should (member "Child of G parent" all))
         (should (member "Own cookie F" all))
         (should (member "Own cookie G" all))))))
 
-(ert-deftest agile-gtd-range-backlog-keeps-the-entries-it-should ()
+(ert-deftest agile-gtd-range-upcoming-keeps-the-entries-it-should ()
   "Narrowing the cutoff must not take the default band down with it."
   (agile-gtd-range-test-with-data
-    (let ((backlog (mapcar #'car (agile-gtd-range-test-ranked
+    (let ((upcoming (mapcar #'car (agile-gtd-range-test-ranked
                                   buffer (agile-gtd-agenda-query-next-actions
-                                          nil 'backlog)))))
-      (should (member "Own cookie B" backlog))
-      (should (member "Own cookie E" backlog))
-      (should (member "Bare no cookie" backlog))
+                                          nil 'upcoming)))))
+      (should (member "Own cookie B" upcoming))
+      (should (member "Own cookie E" upcoming))
+      (should (member "Bare no cookie" upcoming))
       (ert-info ("A far deadline leaves an entry in the default band, not below it")
-        (should (member "Bare with far deadline" backlog))
-        (should (member "Bare with very far deadline" backlog)))
+        (should (member "Bare with far deadline" upcoming))
+        (should (member "Bare with very far deadline" upcoming)))
       (ert-info ("A near deadline pulls an entry up into `sprint'")
         (should (member "Bare with near deadline"
                         (mapcar #'car (agile-gtd-range-test-ranked
@@ -231,7 +231,7 @@ entry carrying that cookie itself."
 It is spoken for until that day arrives, so every range short of `someday'
 leaves it out — the backlog query no less than the next-actions one."
   (agile-gtd-range-test-with-data
-    (dolist (range '(sprint backlog all))
+    (dolist (range '(sprint upcoming all))
       (let ((headings (mapcar #'car (agile-gtd-range-test-ranked
                                      buffer (agile-gtd-agenda-query-backlog
                                              nil range)))))
@@ -320,12 +320,12 @@ groups do not take each other's items."
                    "Parked future tickler"
                    (substring section tickler-at))))))))
 
-(ert-deftest agile-gtd-range-backlog-view-has-no-heading-past-its-cutoff ()
-  "The rendered `backlog' shows no priority heading below the default.
-This is the screenshot the bug was reported from: a `backlog' agenda with
+(ert-deftest agile-gtd-range-upcoming-view-has-no-heading-past-its-cutoff ()
+  "The rendered `upcoming' shows no priority heading below the default.
+This is the screenshot the bug was reported from: a `upcoming' agenda with
 [#F] and [#G] headings on it."
   (agile-gtd-agenda-test-build-view "a"
-    (let* ((text (agile-gtd-agenda-test-rotate-to 'backlog))
+    (let* ((text (agile-gtd-agenda-test-rotate-to 'upcoming))
            (section (agile-gtd-agenda-test-block-section text "Next Actions")))
       (should section)
       (cl-loop for prio from (1+ agile-gtd-priority-default)

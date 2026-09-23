@@ -473,7 +473,7 @@ what keeps a `setq' of the registry as well guarded as a `setopt'."
   "Return the someday files used for refiling."
   (file-expand-wildcards (agile-gtd--expand-org-path agile-gtd-someday-files-glob)))
 
-(defconst agile-gtd-view-ranges '(today sprint backlog all someday)
+(defconst agile-gtd-view-ranges '(today sprint upcoming all someday)
   "Named agenda view ranges, ordered narrowest to widest.
 A range is the one knob an agenda view is widened and narrowed by: it
 fixes both the rank cutoff and whether parked items take part.  The
@@ -491,7 +491,7 @@ RANGE is one of `agile-gtd-view-ranges'."
   (pcase range
     ('today nil)
     ('sprint agile-gtd-sprint-prio-threshold)
-    ('backlog agile-gtd-priority-default)
+    ('upcoming agile-gtd-priority-default)
     ((or 'all 'someday) agile-gtd-priority-lowest)
     (_ (user-error "Unknown Agile GTD view range: %S" range))))
 
@@ -947,7 +947,7 @@ rather than cost one project its command."
            (key (agile-gtd--project-key project)))
        (list :name tag
              :filter `(tags ,tag)
-             :next-range 'backlog
+             :next-range 'upcoming
              :day-filter (list (concat "+" tag))
              :command (when (characterp key)
                         (list (concat "w" (char-to-string key))
@@ -983,7 +983,7 @@ block it mirrors cannot answer differently."
                :command '("pp" "Private Agenda Today"))
          (list :name "work"
                :filter '(agile-gtd-work)
-               :next-range 'backlog
+               :next-range 'upcoming
                :day-filter (list (concat "+" agile-gtd-work-tag))
                :command '("ww" "Work Agenda Today")))
    (agile-gtd--project-areas)))

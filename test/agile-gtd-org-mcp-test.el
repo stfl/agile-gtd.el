@@ -176,12 +176,12 @@ with no project stays out."
       (should-not (member "Work default action" titles)))))
 
 (ert-deftest agile-gtd-org-mcp-a-low-project-holds-its-step-down ()
-  "A step with no cookie sinks with its low project out of `next-backlog'.
+  "A step with no cookie sinks with its low project out of `next-upcoming'.
 A step with no cookie and no project stays in at the default priority."
   (agile-gtd-org-mcp-test-with-fixtures
-    (let ((backlog (agile-gtd-org-mcp-test-titles "next-backlog")))
-      (should-not (member "Private low project step" backlog))
-      (should (member "Private default action" backlog)))
+    (let ((upcoming (agile-gtd-org-mcp-test-titles "next-upcoming")))
+      (should-not (member "Private low project step" upcoming))
+      (should (member "Private default action" upcoming)))
     (should (member "Private low project step"
                     (agile-gtd-org-mcp-test-titles "next-all")))))
 
@@ -266,8 +266,8 @@ Its undated step is not pulled along: it ranks where its own cookie puts it."
 (ert-deftest agile-gtd-org-mcp-short-keys-run-at-the-agenda-defaults ()
   "`next' defaults as the agenda does, and `backlog' to `all'."
   (agile-gtd-org-mcp-test-with-fixtures
-    (dolist (case '(("" sprint) ("private-" sprint) ("work-" backlog)
-                    ("alpha-" backlog) ("beta-" backlog)))
+    (dolist (case '(("" sprint) ("private-" sprint) ("work-" upcoming)
+                    ("alpha-" upcoming) ("beta-" upcoming)))
       (pcase-let ((`(,area ,range) case))
         (ert-info ((format "%snext" area))
           (should (equal (agile-gtd-org-mcp-test-titles (concat area "next"))
@@ -503,13 +503,13 @@ agile-gtd's."
                         "[ \n]+" " " (org-mcp--view-tool-description))))
       (should (string-match-p (regexp-quote "[<area>-]<view>[-<range>]") description))
       (dolist (word '("private" "work" "alpha" "beta"
-                      "next" "backlog" "stuck" "inbox" "tangling"
+                      "next" "backlog" "upcoming" "stuck" "inbox" "tangling"
                       "today" "sprint" "all" "someday"))
         (ert-info (word)
           (should (string-match-p (regexp-quote word) description))))
       (ert-info ("the per-area defaults")
         (should (string-match-p "sprint for everything and private" description))
-        (should (string-match-p "backlog for work, alpha and beta" description)))
+        (should (string-match-p "upcoming for work, alpha and beta" description)))
       (ert-info ("no line per key")
         (should-not (string-match-p "alpha-next-someday" description))))))
 
