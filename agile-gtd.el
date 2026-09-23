@@ -1091,13 +1091,17 @@ the day block above it already carries."
                                                       '(:auto-priority)))))))
     ("p" . "Private")
     ,(agile-gtd--area-agenda-command (agile-gtd--area "private"))
+    ;; A backlog shows blocked steps dimmed however other agendas treat them.
+    ;; The setting is the command's, not the block's: Org marks entries while
+    ;; a block renders but dims or hides them in `org-agenda-finalize', which
+    ;; sees only the command's settings.
     ("pb" "Private Backlog"
      ((agile-gtd-agenda-ql-block (agile-gtd-agenda-query-backlog
                      '(agile-gtd-private) (agile-gtd--agenda-block-range 'all))
                     ((org-ql-block-header
                       (agile-gtd--agenda-block-header "Backlog" 'all))
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))
-                     (org-dim-blocked-tasks t)))))
+                     (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
+     ((org-agenda-dim-blocked-tasks t)))
     ("ps" "Private Stuck Projects"
      ((org-ql-block ',(agile-gtd-agenda-query-stuck-projects '(agile-gtd-private))
                     ((org-ql-block-header "Stuck Projects")
@@ -1110,8 +1114,8 @@ the day block above it already carries."
                      '(agile-gtd-work) (agile-gtd--agenda-block-range 'all))
                     ((org-ql-block-header
                       (agile-gtd--agenda-block-header "Backlog" 'all))
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))
-                     (org-dim-blocked-tasks t)))))
+                     (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
+     ((org-agenda-dim-blocked-tasks t)))
     ("ws" "Work Stuck Projects"
      ((org-ql-block ',(agile-gtd-agenda-query-stuck-projects '(agile-gtd-work))
                     ((org-ql-block-header "Stuck Projects")

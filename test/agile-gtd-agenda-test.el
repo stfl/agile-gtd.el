@@ -1147,6 +1147,29 @@ leaves out everything inside `today', at every range."
             agenda
           (should-not (string-match-p title (agile-gtd-agenda-test-rotate-to 'all))))))))
 
+(ert-deftest agile-gtd-agenda-backlogs-dim-blocked-items-hidden-elsewhere ()
+  "Both backlogs show a blocked step dimmed where blocked tasks are hidden.
+Hiding them globally keeps them out of every other agenda; a backlog is
+the plan, so it shows them, dimmed so they read as not yet startable."
+  (dolist (case '(("pb" "Private chain blocked")
+                  ("wb" "Work chain blocked")))
+    (pcase-let ((`(,backlog ,title) case))
+      (ert-info ((format "%s dims %s" backlog title))
+        (agile-gtd-agenda-test-build-view-with
+            ((org-blocker-hook (list #'org-edna-blocker-function))
+             (org-agenda-dim-blocked-tasks 'invisible))
+            backlog
+          (should (eq org-agenda-dim-blocked-tasks 'invisible))
+          (with-current-buffer (get-buffer org-agenda-buffer-name)
+            (goto-char (point-min))
+            (should (search-forward title nil t))
+            (let ((pos (match-beginning 0)))
+              (should-not (invisible-p pos))
+              (should (cl-some (lambda (ov)
+                                 (eq (overlay-get ov 'face)
+                                     'org-agenda-dimmed-todo-face))
+                               (overlays-at pos))))))))))
+
 (ert-deftest agile-gtd-agenda-backlog-at-today-lists-only-what-is-due-today ()
   "A backlog rotated to `today' holds the projects and actions due today.
 Nothing without a date for today comes along, whatever its priority, and
