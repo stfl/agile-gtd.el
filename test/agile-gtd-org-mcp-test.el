@@ -53,6 +53,9 @@
      "* PROJ Private project due today\n"
      (format "DEADLINE: <%s>\n" today)
      "** NEXT Private step of the project due today\n\n"
+     ;; A low project holds its step down with it.
+     "* PROJ [#F] Private low project\n"
+     "** NEXT Private low project step\n\n"
      "* PROJ Private stuck project\n"
      "** TODO Private notes\n\n"
      "* NEXT [#A] Private someday :SOMEDAY:\n\n"
@@ -171,6 +174,16 @@ with no project stays out."
     (let ((titles (agile-gtd-org-mcp-test-titles "work-next-sprint")))
       (should (member "Work project step" titles))
       (should-not (member "Work default action" titles)))))
+
+(ert-deftest agile-gtd-org-mcp-a-low-project-holds-its-step-down ()
+  "A step with no cookie sinks with its low project out of `next-backlog'.
+A step with no cookie and no project stays in at the default priority."
+  (agile-gtd-org-mcp-test-with-fixtures
+    (let ((backlog (agile-gtd-org-mcp-test-titles "next-backlog")))
+      (should-not (member "Private low project step" backlog))
+      (should (member "Private default action" backlog)))
+    (should (member "Private low project step"
+                    (agile-gtd-org-mcp-test-titles "next-all")))))
 
 (ert-deftest agile-gtd-org-mcp-next-today-holds-any-open-state-blocked-or-not ()
   "`next-today' holds what is due today, a plain TODO and a blocked action alike.
