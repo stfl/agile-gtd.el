@@ -24,7 +24,7 @@ eask exec emacs -batch -Q -L . \
 
 ## Architecture
 
-This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion test files under `test/`. It depends on org-mcp, which Eask loads from the local checkout at `../org-mcp` (with `mcp-server-lib` from MELPA) until the release carrying `org-mcp-view-catalogue-function` is on MELPA.
+This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion test files under `test/`. It depends on the `stfl/org-mcp` fork (MELPA's `org-mcp` is upstream and has no views); Eask fetches it from GitHub's `main` branch.
 
 ### Main entry points
 

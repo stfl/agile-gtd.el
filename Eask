@@ -19,12 +19,10 @@
 (depends-on "org-ql" "0.8")
 (depends-on "org-super-agenda" "1.3")
 (depends-on "org-edna" "1.1.2")
-(depends-on "mcp-server-lib" "0.4.0")
-
-;; org-mcp is loaded from a local checkout until the release carrying
-;; `org-mcp-view-catalogue-function' is on MELPA.  mcp-server-lib above is
-;; its own dependency, which a load path does not install.
-(load-paths "../org-mcp")
+;; MELPA's org-mcp is the upstream package, which has no views; agile-gtd
+;; needs the stfl/org-mcp fork, fetched from its `main' branch.
+(depends-on "org-mcp" :repo "stfl/org-mcp" :fetcher 'github :branch "main"
+            :files '(:defaults "org-mcp-stdio.sh"))
 
 ;; Stale bytecode is loaded in preference to newer source, so a test run can
 ;; silently exercise the last compile rather than the working tree.  The sweep

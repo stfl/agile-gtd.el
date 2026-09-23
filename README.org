@@ -539,6 +539,11 @@ flag off, agile-gtd leaves every org-mcp variable as it is.
 configuration installs the two stdio shims an MCP client launches and starts
 the server. =agile-gtd= never starts it.
 
+The org-mcp that agile-gtd needs is the [[https://github.com/stfl/org-mcp][stfl/org-mcp]] fork, from its =main=
+branch. MELPA's =org-mcp= is the upstream package, which has no views, so
+install the fork by recipe, for example with straight:
+=(:host github :repo "stfl/org-mcp" :branch "main" :files (:defaults "org-mcp-stdio.sh"))=.
+
 #+begin_src emacs-lisp
 (use-package agile-gtd
   :after org
