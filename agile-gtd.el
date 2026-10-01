@@ -294,6 +294,10 @@ change one of them, set it after `agile-gtd-enable' runs."
   "Return the GTD project keyword."
   "PROJ")
 
+(defun agile-gtd--container-keywords ()
+  "Return the GTD keywords of headings that hold other work: projects and epics."
+  (list (agile-gtd--project-keyword) "EPIC"))
+
 (defun agile-gtd--action-keywords ()
   "Return the GTD action keywords."
   '("NEXT" "WAIT"))
@@ -1313,11 +1317,12 @@ where someone is heading, not stations on a loop to be passed through."
                  (rec `(not (tags ,agile-gtd-work-tag))))))
 
 (org-ql-defpred (agile-gtd-stuck-proj agile-gtd-stuck) ()
-  "Match stuck projects."
+  "Match stuck projects and epics: no open PROJ, EPIC or NEXT/WAIT child."
   :normalizers ((`(,predicate-names)
-                 (rec `(and (todo ,(agile-gtd--project-keyword))
+                 (rec `(and (todo ,@(agile-gtd--container-keywords))
                             (not (tags ,agile-gtd-someday-tag))
-                            (not (children (todo ,@(agile-gtd--action-keywords))))
+                            (not (children (todo ,@(agile-gtd--container-keywords)
+                                                 ,@(agile-gtd--action-keywords))))
                             (not (agile-gtd-tickler-proj)))))))
 
 (org-ql-defpred agile-gtd-standalone-next ()
@@ -1593,7 +1598,8 @@ This is the inverse of `agile-gtd--prio-rank'."
 state scheduled or due today or overdue, blocked or not")
     (backlog . "PROJ and standalone NEXT/WAIT in the range, blocked ones \
 included, no habits")
-    (stuck . "projects with no NEXT/WAIT child; takes no range"))
+    (stuck . "projects and epics with no open PROJ/EPIC/NEXT/WAIT child; \
+takes no range"))
   "The views every area asks, each with what it holds for the catalogue.")
 
 (defconst agile-gtd--org-records-mcp-global-views

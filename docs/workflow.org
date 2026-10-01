@@ -43,8 +43,9 @@ Headings without a TODO keyword are structural headings only.
 | DONE    | Completed successfully.                                     |
 | KILL    | Explicitly cancelled; kept for history instead of deleting. |
 
-A project is healthy when it has at least one child in =NEXT= or =WAIT=.
-A project with no such child is stuck.
+A project or epic is healthy when it has at least one open child in =PROJ=,
+=EPIC=, =NEXT= or =WAIT=. One with no such child is stuck. A project or epic
+tagged =SOMEDAY= is never stuck.
 
 * Hierarchy and execution
 

@@ -55,7 +55,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion t
 - `agile-gtd-agenda-query-next-actions` — unblocked NEXT/WAIT, or any open task inside `today` regardless of blocking, cut at the range. `hide-today` (passed by the agenda blocks under the day block) removes everything inside `today` by rank, from both halves, at every range, so the `[today]` block is always empty
 - `agile-gtd-agenda-query-backlog` — PROJ and standalone NEXT/WAIT, blocked included
 - `agile-gtd-agenda-query-inbox` — unprocessed inbox items
-- `agile-gtd-agenda-query-stuck-projects` — projects with no NEXT action
+- `agile-gtd-agenda-query-stuck-projects` — PROJ or EPIC (`agile-gtd--container-keywords`) with no open PROJ/EPIC/NEXT/WAIT child
 - Project-specific agenda commands generated from `agile-gtd-projects`
 
 **Area table** (`agile-gtd-areas`)

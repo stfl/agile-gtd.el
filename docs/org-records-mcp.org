@@ -53,8 +53,8 @@ one, and =stuck=. With three projects registered — say =alpha=, =beta= and
 - =backlog=: projects and standalone =NEXT= / =WAIT= items in the range,
   blocked ones included, habits left out. Outside =someday=, SOMEDAY items,
   ticklers and work scheduled after today are left out.
-- =stuck=: projects with no =NEXT= / =WAIT= child, as in the Stuck Projects
-  block.
+- =stuck=: projects and epics with no open =PROJ= / =EPIC= / =NEXT= / =WAIT=
+  child, as in the Stuck Projects block.
 - =inbox=: open items carrying one of =agile-gtd-inbox-tags=.
 - =tangling=: open items under a finished ancestor.
 

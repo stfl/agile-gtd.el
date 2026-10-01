@@ -212,16 +212,45 @@ Runs the query once with preambles enabled and once with them disabled."
           (agile-gtd-tickler))
     nil)))
 
+(defconst agile-gtd-org-ql-test-epic-data
+  "* EPIC Stuck epic
+** TODO Epic notes only
+** DONE Finished epic project
+
+* EPIC Epic with project
+** PROJ Epic child project
+*** NEXT Epic grandchild
+
+* EPIC Epic with sub-epic
+** EPIC Nested stuck epic
+
+* EPIC Epic with action
+** WAIT Epic waiting child
+
+* PROJ Project with sub-project
+** PROJ Sub-project
+*** NEXT Sub-project step
+
+* EPIC Someday epic :SOMEDAY:
+"
+  "Epic fixtures appended to `agile-gtd-org-ql-test-data' by the stuck test.")
+
 (ert-deftest agile-gtd-org-ql-predicates-match-stuck-projects ()
-  (agile-gtd-org-ql-test-with-data
-   (agile-gtd-org-ql-test-assert-query
-    buffer
-    '(agile-gtd-stuck-proj)
-    '("Stuck project"))
-   (agile-gtd-org-ql-test-assert-query
-    buffer
-    '(agile-gtd-stuck)
-    '("Stuck project"))))
+  (let ((agile-gtd-org-ql-test-data (concat agile-gtd-org-ql-test-data "\n"
+                                            agile-gtd-org-ql-test-epic-data)))
+    (agile-gtd-org-ql-test-with-data
+     (agile-gtd-org-ql-test-assert-query
+      buffer
+      '(agile-gtd-stuck-proj)
+      '("Stuck project" "Stuck epic" "Nested stuck epic"))
+     (agile-gtd-org-ql-test-assert-query
+      buffer
+      '(agile-gtd-stuck)
+      '("Stuck project" "Stuck epic" "Nested stuck epic"))
+     (agile-gtd-org-ql-test-assert-query
+      buffer
+      '(and (agile-gtd-stuck) (heading "Project with sub-project"))
+      nil))))
 
 (ert-deftest agile-gtd-org-ql-predicates-separate-standalone-and-tangled-actions ()
   (agile-gtd-org-ql-test-with-data

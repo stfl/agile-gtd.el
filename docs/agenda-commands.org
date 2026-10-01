@@ -13,7 +13,7 @@ The package installs a set of agenda commands under =org-agenda-custom-commands=
 | =l=    | Agenda Weekly with Log   | Week view with closed-item log                   |
 | =r=    | Review                   | Prefix for review commands                       |
 | =rc=   | Close open actions       | All active NEXT/WAIT within 30 days              |
-| =rs=   | Stuck Projects           | Projects with no NEXT/WAIT child                 |
+| =rs=   | Stuck Projects           | PROJ/EPIC with no open PROJ/EPIC/NEXT/WAIT child |
 | =rt=   | Tangling TODOs           | Actions orphaned under completed ancestors       |
 | =rS=   | SOMEDAY                  | Low-priority and deferred projects               |
 | =p=    | Private                  | Prefix for private (non-work) commands           |
