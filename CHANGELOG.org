@@ -1,6 +1,23 @@
 #+title: Changelog
 
-* Unreleased
+* 0.6.0
+
+Requires org-records-mcp 0.11.0.
+
+** Breaking change: view rows carry =rank= alone unasked
+
+org-records-mcp answers =breadcrumbs= and =blocked= itself, so agile-gtd no
+longer defines computed fields for them. A refresh adds =rank= to
+~org-records-mcp-list-computed-fields~, keeping the names already there. A view
+row no longer carries =parent-priority=, =blocked= or =breadcrumbs= unless the
+call names them in =computed= or =fields=; a read of one node still carries
+them all.
+
+** Stuck epics count as stuck projects
+
+An open =EPIC= with no open =PROJ=, =EPIC=, =NEXT= or =WAIT= child shows in
+every Stuck Projects block and in the org-records-mcp =stuck= views, and a
+sub-project or sub-epic counts as progress for its parent.
 
 ** ~org-store-link~ links by location and copies the link
 
