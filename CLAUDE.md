@@ -67,6 +67,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 - The apply step merges views and the `rank`/`parent-priority` computed fields by name (dropping keys recorded in `agile-gtd--org-records-mcp-view-names` from the previous refresh), adds `rank` to `org-records-mcp-list-computed-fields` (what a match list carries unasked; `all` and the user's names are kept), sets `org-records-mcp-query-sort-fn`, `org-records-mcp-view-catalogue-function`, `org-records-mcp-allowed-files` (nil) and `org-records-mcp-file-scope-override` (t). It never starts the MCP server
 - `blocked` and `breadcrumbs` are org-records-mcp node fields, not agile-gtd computed fields. `blocked` answers `org-blocker-hook`, so it sees org-edna's blockers only while `agile-gtd--apply-org-settings` keeps `org-edna-mode` on
 - `agile-gtd-org-records-mcp-view-catalogue` writes the `org-view` description from the area table and range list; keep its words in step with the queries
+- org-records-mcp's schema lists every key as the `enum` of `org-view`'s `view`, and the computed fields as that of `computed`, read when it registers the tools; `agile-gtd-org-records-mcp-schema-lists-every-key` reads them over tools/list
 
 **Rank / sort key** (`agile-gtd--item-rank`, `agile-gtd--item-rank<`)
 - Composite score from item priority, parent-project priority, deadline proximity, and scheduled date
