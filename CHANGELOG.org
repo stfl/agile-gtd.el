@@ -1,5 +1,18 @@
 #+title: Changelog
 
+* Unreleased
+
+** ~org-store-link~ links by location and copies the link
+
+An interactive ~org-store-link~ is advised by default. In a file under
+~org-directory~ or ~org-roam-directory~ it links a heading by its =:ID:=,
+creating one when missing; in any other file it creates a =:CUSTOM_ID:= slug
+instead. It also copies the link to the kill ring as a bare link with an
+absolute path, the form org-records-mcp's tools accept; ~org-stored-links~
+keeps Org's own form. Calls from Lisp, including org-records-mcp's, are left
+alone. Set ~agile-gtd-enable-link-ids~ or ~agile-gtd-enable-link-kill-ring~ to
+nil to keep the stock behaviour; [[file:docs/storing-links.org][Storing links]] has the details.
+
 * 0.3.0
 
 ** Breaking change: ~agile-gtd-max-priority-group~ is removed

@@ -24,7 +24,7 @@ eask exec emacs -batch -Q -L . \
 
 ## Architecture
 
-This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion test files under `test/`. It depends on org-records-mcp, which is not on MELPA (MELPA's `org-mcp` is a different package with no views); Eask fetches `stfl/org-records-mcp` from GitHub's `main` branch.
+This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion test files under `test/`. It depends on org-records-mcp, which is not on MELPA (MELPA's `org-mcp` is a different package with no views); Eask fetches `stfl/org-records-mcp` from GitHub's `main` branch.
 
 ### Main entry points
 
@@ -87,6 +87,13 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with seven companion t
 - `org-archive-location` derives from `org-directory` through `agile-gtd--expand-org-path`; values that follow from agile-gtd's own configuration are derived, never hard-coded
 - Blocked tasks are hidden globally (`org-agenda-dim-blocked-tasks` `invisible`); the area commands (`agile-gtd--area-agenda-command`) and the `pb`/`wb` backlogs dim them with a command-level setting, because `org-agenda-finalize` sees only command settings, never a block's
 - A setting added here goes into both test sandboxes and into [docs/org-settings.org](docs/org-settings.org), with its reason
+
+**Link storing** (`agile-gtd--apply-link-storing`, behind `agile-gtd-enable-link-ids` and `agile-gtd-enable-link-kill-ring`)
+- Two `:around` advices on `org-store-link`, added or removed on every refresh. `agile-gtd--org-store-link-ids-a` links a heading by `:ID:` in files under `org-directory`/`org-roam-directory` and by a created `:CUSTOM_ID:` slug elsewhere; `agile-gtd--org-store-link-kill-ring-a` copies the link to the kill ring as a bare link with an absolute `file:` path, preferring the heading's `id:` link when Org stores two
+- Both act only when `org-store-link`'s INTERACTIVE? argument is non-nil. org-records-mcp mints every link it returns with a non-interactive `org-store-link` and refuses advice that changes the buffer or the link's form (`org-records-mcp--link-at-point`); a change that acts on non-interactive calls breaks it, and `agile-gtd-links-org-records-mcp-mints-its-own-links` guards that
+- The kill-ring advice runs at depth -50, outermost, so it reads `org-stored-links` after the ID advice; it never writes `org-stored-links`, whose form `org-insert-last-stored-link` relies on
+- org-roam is not a dependency: `org-roam-directory` is read with `bound-and-true-p`
+- [docs/storing-links.org](docs/storing-links.org) describes the behaviour and the org-records-mcp contract for users
 
 **org-edna integration**
 - `agile-gtd-trigger-next-sibling` / `agile-gtd-blocker-previous-sibling` wire up task-chaining via org-edna triggers/blockers

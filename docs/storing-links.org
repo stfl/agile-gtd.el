@@ -1,0 +1,79 @@
+#+title: Storing links
+
+What =org-store-link= does once agile-gtd is enabled: which identifier a
+heading is linked by, and the copy it leaves on the kill ring. Back to the
+[[file:../README.org][README]].
+
+Every =agile-gtd-refresh= advises =org-store-link=. Both parts act only on an
+/interactive/ call, the one a key or =M-x= makes. Capture's =%a=, the links
+org-records-mcp makes, and every other call from Lisp go through unchanged.
+
+* Which identifier a heading gets
+
+Where the file lives decides how a heading is linked:
+
+| File                                          | Link               | Created when missing |
+|-----------------------------------------------+--------------------+----------------------|
+| under =org-directory= or =org-roam-directory= | =id:UUID=          | an =:ID:=            |
+| anywhere else                                 | =file:PATH::#slug= | a =:CUSTOM_ID:=      |
+
+An =:ID:= only resolves in files Org's ID index scans, and that index covers
+=org-directory= and, with org-roam, =org-roam-directory=. A heading in any other
+file, such as a project's notes in its repository, is given a =:CUSTOM_ID:=
+slug made from its title instead, so the link still resolves and the file
+gains no ID that nothing could find. The slug is unique within the file: a
+second heading titled the same gets =title-2=.
+
+Before the first heading, neither identifier is created; Org links the
+position the way it would without agile-gtd.
+
+org-roam is optional. agile-gtd reads =org-roam-directory= when org-roam has
+set it and never loads org-roam itself; without it, only =org-directory=
+counts.
+
+Set =agile-gtd-enable-link-ids= to nil to keep Org's own choice of identifier.
+
+* The copy on the kill ring
+
+Each interactive =org-store-link= also puts the link on the kill ring, and so
+on the system clipboard when Emacs shares it, ready to paste into a terminal,
+a chat or an AI assistant:
+
+| Stored link                         | Copied as                                   |
+|-------------------------------------+---------------------------------------------|
+| =id:UUID=                           | =id:UUID=                                   |
+| =file:~/notes/x.org::#some-heading= | =file:/home/you/notes/x.org::#some-heading= |
+| =file:~/notes/x.org::*Some heading= | =file:/home/you/notes/x.org::*Some heading= |
+| any other type, such as =https:=    | unchanged                                   |
+
+The copy is bare: no brackets and no description. A =file:= path is made
+absolute, because a reader outside Emacs cannot expand =~= or a path relative
+to the buffer. When Org stores two links for one heading, one by =:ID:= and a
+second by =:CUSTOM_ID:=, the =id:= link is the one copied.
+
+Only the copy changes. =org-stored-links= keeps the link exactly as Org made
+it, so =org-insert-last-stored-link= and =org-insert-link= insert what they
+would without agile-gtd, with the path written the way =org-link-file-path-type=
+says.
+
+Set =agile-gtd-enable-link-kill-ring= to nil to leave the kill ring alone.
+
+* Working with org-records-mcp
+
+The two parts are built so links travel between you and an assistant using
+[[file:org-records-mcp.org][org-records-mcp]] without translation:
+
+- *A copied link is one org-records-mcp accepts.* Its tools take
+  =id:<uuid>=, =file:<path>::#<custom-id>=, =file:<path>::*<title>= or
+  =file:<path>=, with the file's full path; the copy is always one of these
+  when the stored link is an Org link to a heading or file. Paste it into a
+  prompt and the assistant can read or change that heading.
+- *Links org-records-mcp makes are unchanged.* org-records-mcp calls
+  =org-store-link= non-interactively to link every heading it returns, and
+  refuses any advice that changes the buffer or the form of the link. Both
+  parts leave such calls alone, so no =:ID:= or =:CUSTOM_ID:= appears in your
+  files because an assistant read them, and the kill ring is never touched by
+  a tool call.
+- *Both sides prefer the same identifier.* For a heading with an =:ID:=,
+  org-records-mcp returns =id:UUID= and the copy is =id:UUID=, so a link you
+  paste and a link the assistant returns for the same heading compare equal.

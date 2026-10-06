@@ -94,6 +94,10 @@ On every refresh, unless =agile-gtd-enable-org-records-mcp= is nil:
 A key belonging to a project that left the registry goes with it. With the
 flag off, agile-gtd leaves every org-records-mcp variable as it is.
 
+Links you store yourself are copied in a form org-records-mcp's tools accept,
+and the links org-records-mcp makes are left alone; see
+[[file:storing-links.org::*Working with org-records-mcp][Working with org-records-mcp]].
+
 * Setting up org-records-mcp
 
 =agile-gtd= configures what org-records-mcp serves; you configure how it runs. Your

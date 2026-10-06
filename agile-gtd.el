@@ -47,6 +47,7 @@
 (require 'org-super-agenda)
 
 (defvar org-modern-priority)
+(defvar org-roam-directory)
 
 (defgroup agile-gtd nil
   "Agile and GTD helpers for Org mode."
@@ -252,6 +253,28 @@ When non-nil, every refresh turns on `org-edna-mode', adds `org-habit' to
 logging, archive, habit, agenda and inheritance options the views rely
 on.  docs/org-settings.org lists each value and why it is needed.  To
 change one of them, set it after `agile-gtd-enable' runs."
+  :type 'boolean
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-enable-link-ids t
+  "Whether an interactive `org-store-link' links headings by location.
+When non-nil, every refresh advises `org-store-link' so that, called
+interactively in an Org buffer, it links a heading by its :ID: in a
+file under `org-directory' or `org-roam-directory', creating the ID
+when missing, and by a :CUSTOM_ID: slug in any other file, creating
+the slug instead of an ID.  Non-interactive calls, such as capture\\='s
+%a or org-records-mcp\\='s, are left alone.  When nil, a refresh removes
+the advice."
+  :type 'boolean
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-enable-link-kill-ring t
+  "Whether an interactive `org-store-link' also copies the link.
+When non-nil, every refresh advises `org-store-link' so that, called
+interactively, it also puts the link on the kill ring as a bare link
+with an absolute `file:' path, in a form org-records-mcp accepts.
+`org-stored-links' keeps Org\\='s own form.  When nil, a refresh
+removes the advice."
   :type 'boolean
   :group 'agile-gtd)
 
@@ -1844,6 +1867,94 @@ would otherwise change it alone."
     (remove-hook 'org-blocker-hook #'org-block-todo-from-checkboxes)
     (add-to-list 'org-modules 'org-habit)))
 
+(defun agile-gtd--link-id-file-p (&optional file)
+  "Non-nil if FILE lies under `org-directory' or `org-roam-directory'.
+FILE defaults to the file the current buffer visits."
+  (when-let* ((file (or file (buffer-file-name (buffer-base-buffer)))))
+    (seq-some (lambda (dir) (and dir (file-in-directory-p file dir)))
+              (list org-directory (bound-and-true-p org-roam-directory)))))
+
+(defun agile-gtd--heading-slug (title)
+  "Turn TITLE into a slug for use as an Org :CUSTOM_ID:."
+  (let ((slug (string-trim (replace-regexp-in-string
+                            "[^[:alnum:]]+" "-" (downcase title))
+                           "-+" "-+")))
+    (if (string-empty-p slug) "heading" slug)))
+
+(defun agile-gtd--ensure-custom-id ()
+  "Give the heading at point a :CUSTOM_ID:, unless it already has one.
+The slug comes from the heading title and is made unique within the
+file, matching Org\\='s own case-insensitive `#' link search."
+  (org-back-to-heading t)
+  (unless (org-entry-get nil "CUSTOM_ID")
+    (let* ((base (agile-gtd--heading-slug (org-get-heading t t t t)))
+           (slug base)
+           (n 1))
+      (while (org-with-wide-buffer (org-find-property "CUSTOM_ID" slug))
+        (setq n (1+ n)
+              slug (format "%s-%d" base n)))
+      (org-entry-put nil "CUSTOM_ID" slug))))
+
+(defun agile-gtd--org-store-link-ids-a (fn &optional arg interactive?)
+  "Around advice for `org-store-link': link headings by location.
+FN is `org-store-link', called with ARG and INTERACTIVE?.  In a file
+`agile-gtd--link-id-file-p' accepts, a heading is linked by its :ID:,
+created when missing.  In any other file it gets a :CUSTOM_ID: slug
+instead and never an :ID:; before the first heading it gets neither.
+Only interactive calls from Org buffers are changed."
+  (if (not (and interactive? (derived-mode-p 'org-mode)))
+      (funcall fn arg interactive?)
+    (if (agile-gtd--link-id-file-p)
+        (let ((org-id-link-to-org-use-id t))
+          (funcall fn arg interactive?))
+      (unless (org-before-first-heading-p)
+        (agile-gtd--ensure-custom-id))
+      (let ((org-id-link-to-org-use-id nil))
+        (funcall fn arg interactive?)))))
+
+(defun agile-gtd--link-for-kill-ring (link)
+  "Return LINK as a bare link with a `file:' path made absolute.
+The result is an `id:', `file:PATH', `file:PATH::#CUSTOM_ID' or
+`file:PATH::*TITLE' link as org-records-mcp accepts it; other link
+types come back unchanged."
+  (if (string-match "\\`file:\\(.*?\\)\\(::.*\\)?\\'" link)
+      (concat "file:" (expand-file-name (match-string 1 link))
+              (match-string 2 link))
+    link))
+
+(defun agile-gtd--org-store-link-kill-ring-a (fn &optional arg interactive?)
+  "Around advice for `org-store-link': also copy the link to the kill ring.
+FN is `org-store-link', called with ARG and INTERACTIVE?.  When Org
+stores both an `id:' link and a :CUSTOM_ID: link for the heading at
+point, the `id:' link is the one copied.  Non-interactive calls leave
+the kill ring alone."
+  (let ((stored (funcall fn arg interactive?)))
+    (when (and interactive? (consp stored))
+      (let* ((id (and (derived-mode-p 'org-mode)
+                      (not (org-before-first-heading-p))
+                      (org-entry-get nil "ID")))
+             (id-entry (and id (assoc (concat "id:" id)
+                                      (seq-take org-stored-links 2))))
+             (link (agile-gtd--link-for-kill-ring
+                    (car (or id-entry stored)))))
+        (kill-new link)
+        (message "Stored and copied: %s" link)))
+    stored))
+
+(defun agile-gtd--apply-link-storing ()
+  "Add or remove the `org-store-link' advice the two link flags ask for.
+`agile-gtd-enable-link-ids' controls `agile-gtd--org-store-link-ids-a',
+`agile-gtd-enable-link-kill-ring' controls
+`agile-gtd--org-store-link-kill-ring-a'.  The kill-ring advice sits
+outermost, so it sees the links the ID advice made."
+  (if agile-gtd-enable-link-ids
+      (advice-add 'org-store-link :around #'agile-gtd--org-store-link-ids-a)
+    (advice-remove 'org-store-link #'agile-gtd--org-store-link-ids-a))
+  (if agile-gtd-enable-link-kill-ring
+      (advice-add 'org-store-link :around
+                  #'agile-gtd--org-store-link-kill-ring-a '((depth . -50)))
+    (advice-remove 'org-store-link #'agile-gtd--org-store-link-kill-ring-a)))
+
 (defun agile-gtd-refresh ()
   "Refresh all derived Agile GTD configuration."
   (interactive)
@@ -1857,7 +1968,8 @@ would otherwise change it alone."
   (agile-gtd--apply-refile-targets)
   (agile-gtd--apply-capture-templates)
   (agile-gtd--apply-agenda-commands)
-  (agile-gtd--apply-org-records-mcp))
+  (agile-gtd--apply-org-records-mcp)
+  (agile-gtd--apply-link-storing))
 
 (defun agile-gtd--project-untagged-files (record)
   "Return the files of RECORD that do not declare RECORD\\='s tag.

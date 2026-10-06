@@ -180,6 +180,7 @@ With straight, the org-records-mcp recipe is
 | Chaining steps so the next one becomes =NEXT=              | [[file:docs/task-dependencies.org][Task dependencies]]                            |
 | Querying the workflow from your own org-ql searches        | [[file:docs/org-ql-predicates.org][org-ql predicates]]                            |
 | Giving an AI assistant your agenda through MCP             | [[file:docs/org-records-mcp.org][Views for AI assistants]]                      |
+| Which identifier a stored link uses; the clipboard copy    | [[file:docs/storing-links.org][Storing links]]                                |
 | What =agile-gtd-enable= changes in Org                     | [[file:docs/configuration.org][What the package configures]]                  |
 | Each Org option it sets, and why                           | [[file:docs/org-settings.org][Org settings agile-gtd applies]]               |
 | What changed between releases                              | [[file:CHANGELOG.org][Changelog]]                                    |

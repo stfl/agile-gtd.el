@@ -45,6 +45,8 @@
           (org-records-mcp-allowed-files nil)
           (org-records-mcp-file-scope-override nil)
           (agile-gtd-enable-org-settings t)
+          (agile-gtd-enable-link-ids t)
+          (agile-gtd-enable-link-kill-ring t)
           (org-edna-mode nil)
           (org-blocker-hook nil)
           (org-trigger-hook nil)
@@ -91,6 +93,8 @@
          (progn
            ,@body)
        (ignore-errors (org-super-agenda-mode -1))
+       (advice-remove 'org-store-link #'agile-gtd--org-store-link-ids-a)
+       (advice-remove 'org-store-link #'agile-gtd--org-store-link-kill-ring-a)
        (delete-directory tmpdir t))))
 
 (ert-deftest agile-gtd-enable-applies-core-settings ()

@@ -18,6 +18,10 @@ configuring:
 - the Org options the workflow depends on: org-edna-mode, logging into the
   =LOGBOOK=, the archive location, org-habit, agenda behaviour and
   inheritance, unless =agile-gtd-enable-org-settings= is nil
+- =org-store-link=: interactive calls link a heading by =:ID:= or
+  =:CUSTOM_ID:= depending on where its file lives, unless
+  =agile-gtd-enable-link-ids= is nil, and copy the link to the kill ring,
+  unless =agile-gtd-enable-link-kill-ring= is nil; see [[file:storing-links.org][Storing links]]
 
 =agile-gtd-refresh= stops there. =agile-gtd-enable= also runs the startup tag
 check (see [[file:projects.org::*Tag check at startup][Tag check at startup]]).
