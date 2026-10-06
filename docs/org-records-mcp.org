@@ -127,7 +127,8 @@ views and does not work with agile-gtd.
     (mcp-server-lib-install)))
 
 (use-package org-records-mcp
-  ;; After agile-gtd, so the views exist before the first call.
+  ;; After agile-gtd, so the views, and the keys the schema lists, exist
+  ;; before the first call.
   :after (org agile-gtd mcp-server-lib)
   :config
   (unless (file-exists-p (org-records-mcp--installed-script-path))
@@ -147,7 +148,23 @@ configuration instead, turn that off before =agile-gtd-enable= runs:
 (setopt agile-gtd-enable-org-records-mcp nil)
 #+end_src
 
-org-records-mcp resolves a key on every call, so the keys a refresh adds, such as those
-of a project added to the registry, work at once. The key grammar in the =org-view=
-tool description is written when a client connects, and is rewritten once
-every client has disconnected and one connects again.
+* The keys in the tool schema
+
+org-records-mcp publishes the schema of every tool it registers, and the
+schema of =org-view= lists every key as the only values its =view= parameter
+takes. A client that checks its arguments against the schema, such as Claude
+Code, picks a key from that list and refuses one the list does not hold before
+the call reaches Emacs. =filter= and =range= list no names, since a key takes
+neither. The schema of =computed= lists =rank=, =parent-priority= and any
+computed field of your own.
+
+org-records-mcp resolves a key on every call, so the keys a refresh adds, such
+as those of a project added to the registry, answer at once a client that
+sends them. The schema and the key grammar in the =org-view= tool description
+are written when org-records-mcp registers the tools: when a client connects,
+and again once every client has disconnected and one connects again. Until
+then a client that checks the schema refuses the new keys. A configuration
+that keeps the tools registered for the whole session, as a standing
+=org-records-mcp-enable= at startup does, publishes them after Emacs restarts.
+
+See [[https://github.com/stfl/org-records-mcp/blob/main/docs/installation.org#the-types-the-tool-schema-publishes][The types the tool schema publishes]] for the type of every parameter.

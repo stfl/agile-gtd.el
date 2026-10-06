@@ -14,6 +14,7 @@
 (require 'org-edna)
 (require 'agile-gtd)
 (require 'agile-gtd-test)
+(require 'mcp-server-lib-ert)
 
 (ert-deftest agile-gtd-org-records-mcp-is-loaded-with-agile-gtd ()
   "org-records-mcp is a hard dependency: loading agile-gtd loads it."
@@ -524,6 +525,56 @@ agile-gtd's."
              (lambda () (agile-gtd-org-records-mcp-test-view "gamma-next"))))
     (should (agile-gtd-org-records-mcp-test-refusal
              (lambda () (agile-gtd-org-records-mcp-test-view "beta-next"))))))
+
+(defun agile-gtd-org-records-mcp-test-published-param (tool parameter)
+  "Return the schema org-records-mcp publishes for TOOL's PARAMETER.
+The tools are registered and listed the way a client lists them, over
+tools/list, so the answer is what a client checks its arguments against."
+  (org-records-mcp-enable)
+  (unwind-protect
+      (let ((mcp-server-lib-ert-server-id "org-records-mcp"))
+        (mcp-server-lib-ert-with-server
+          :tools t
+          :resources t
+          :name "org-records-mcp"
+          :version org-records-mcp-version
+          (let ((entry (cl-find tool
+                                (append (alist-get 'tools
+                                                   (mcp-server-lib-ert-get-success-result
+                                                    "tools/list"
+                                                    (mcp-server-lib-create-tools-list-request)))
+                                        nil)
+                                :key (lambda (entry) (alist-get 'name entry))
+                                :test #'equal)))
+            (alist-get parameter (alist-get 'properties (alist-get 'inputSchema entry))))))
+    (org-records-mcp-disable)))
+
+(defun agile-gtd-org-records-mcp-test-published-keys ()
+  "Return the keys the schema of org-view's `view' lists."
+  (append (alist-get 'enum (agile-gtd-org-records-mcp-test-published-param "org-view" 'view))
+          nil))
+
+(ert-deftest agile-gtd-org-records-mcp-schema-lists-every-key ()
+  "The schema of org-view's `view' lists every key org-view resolves.
+A client checks its arguments against the schema, so a key the schema does
+not list never reaches the tool.  A key is the whole question, so `filter'
+and `range' offer no names to pick from.  The computed fields agile-gtd
+adds are the names `computed' lists."
+  (agile-gtd-org-records-mcp-test-with-fixtures
+    (should (equal (agile-gtd-org-records-mcp-test-published-keys)
+                   (agile-gtd-org-records-mcp-test-listed-keys)))
+    (dolist (parameter '(filter range))
+      (ert-info ((symbol-name parameter))
+        (should-not (assq 'enum (agile-gtd-org-records-mcp-test-published-param
+                                 "org-view" parameter)))))
+    (let ((computed (agile-gtd-org-records-mcp-test-published-param "org-view" 'computed)))
+      (should (equal (append (alist-get 'enum (alist-get 'items (aref (alist-get 'anyOf computed) 0)))
+                             nil)
+                     '("rank" "parent-priority"))))
+    (ert-info ("a project added before the tools register is listed")
+      (setq agile-gtd-projects (append agile-gtd-projects '((:tag "gamma"))))
+      (agile-gtd-refresh)
+      (should (member "gamma-next" (agile-gtd-org-records-mcp-test-published-keys))))))
 
 (ert-deftest agile-gtd-org-records-mcp-catalogue-states-the-grammar ()
   "The org-view description states the grammar rather than listing every key."

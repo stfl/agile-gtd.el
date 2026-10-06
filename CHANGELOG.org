@@ -1,5 +1,19 @@
 #+title: Changelog
 
+* 0.7.0
+
+Requires org-records-mcp 0.12.0.
+
+** The tool schema lists every view key
+
+org-records-mcp publishes each parameter's JSON type, and the schema of
+=org-view= lists every key agile-gtd generates as the values =view= takes. A
+client that checks its arguments against the schema picks a key from that list
+and refuses any other before the call reaches Emacs. The schema of =computed=
+lists =rank= and =parent-priority=. Both are written when org-records-mcp
+registers its tools, so a key a refresh adds reaches such a client once the
+tools register again; see [[file:docs/org-records-mcp.org::*The keys in the tool schema][The keys in the tool schema]].
+
 * 0.6.0
 
 Requires org-records-mcp 0.11.0.

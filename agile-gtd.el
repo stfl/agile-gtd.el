@@ -1790,8 +1790,11 @@ Entries named in RETIRED are dropped as well; every other entry is kept."
 (defun agile-gtd--apply-org-records-mcp ()
   "Configure org-records-mcp from the area table, unless `agile-gtd-enable-org-records-mcp' is off.
 The server itself is started by the user\\='s configuration: org-records-mcp reads
-the views on every call, so keys added here resolve at once, and builds the
-org-view description when a client connects."
+the views on every call, so keys added here resolve at once.  It writes the
+org-view description, and the schema listing every key, the computed fields
+and no filter or range, when it registers the tools, so a client checking its
+arguments against the schema accepts a key added here once the tools register
+again."
   (when agile-gtd-enable-org-records-mcp
     (let ((views (agile-gtd-org-records-mcp-views)))
       (setq org-records-mcp-views (agile-gtd--merge-by-name
