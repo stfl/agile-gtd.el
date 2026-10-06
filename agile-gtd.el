@@ -3,9 +3,9 @@
 ;; Copyright (C) 2026 Stefan Lendl
 
 ;; Author: Stefan Lendl <git@stfl.dev>
-;; Version: 0.6.0
+;; Version: 0.7.0
 ;; URL: https://github.com/stfl/agile-gtd
-;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2") (org-records-mcp "0.11.0"))
+;; Package-Requires: ((emacs "30.2") (dash "2.19.1") (org-modern "1.6") (org-ql "0.8") (org-super-agenda "1.3") (org-edna "1.1.2") (org-records-mcp "0.12.0"))
 ;; Keywords: outlines, calendar, tools
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
