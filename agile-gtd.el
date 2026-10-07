@@ -99,15 +99,19 @@
 (defcustom agile-gtd-todo-keywords
   '((sequence
      "TODO(t)"
-     "NEXT(n)"
-     "WAIT(w)"
-     "PROJ(p)"
-     "EPIC(e)"
+     "NEXT(n!)"
+     "WAIT(w@/!)"
+     "PROJ(p!)"
+     "EPIC(e!)"
      "|"
      "DONE(d@)"
      "IDEA(i)"
      "KILL(k@)"))
-  "TODO keyword sequence used by Agile GTD."
+  "TODO keyword sequence used by Agile GTD.
+Every state past capture leaves a line in the LOGBOOK: entering NEXT,
+PROJ or EPIC records the time, entering WAIT asks what is awaited and
+leaving it records the time, and DONE and KILL ask for a closing note.
+TODO and IDEA record nothing."
   :type 'sexp
   :group 'agile-gtd)
 
@@ -1824,6 +1828,7 @@ docs/org-settings.org gives the reason for each."
     (org-log-repeat . time)
     (org-log-redeadline . time)
     (org-log-reschedule . time)
+    (org-log-refile . time)
     (org-log-state-notes-insert-after-drawers . nil)
     ;; Archive and habits
     (org-archive-location . ,(agile-gtd--expand-org-path "archive/%s::datetree"))

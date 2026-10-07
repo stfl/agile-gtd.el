@@ -62,6 +62,7 @@
           (org-log-repeat org-log-repeat)
           (org-log-redeadline org-log-redeadline)
           (org-log-reschedule org-log-reschedule)
+          (org-log-refile org-log-refile)
           (org-log-state-notes-insert-after-drawers
            org-log-state-notes-insert-after-drawers)
           (org-archive-location org-archive-location)

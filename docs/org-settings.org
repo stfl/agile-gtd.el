@@ -67,7 +67,11 @@ from the agenda files and their archives.
 | =org-log-repeat=                           | =time=      | Each pass of a repeating task leaves a dated line, so a habit or recurring action keeps its history.                                                                        |
 | =org-log-redeadline=                       | =time=      | A moved deadline is recorded. Deadlines feed the rank, and a deadline that keeps moving shows in the log.                                                                   |
 | =org-log-reschedule=                       | =time=      | A moved scheduled date is recorded, for the same reason.                                                                                                                    |
+| =org-log-refile=                           | =time=      | A refile is recorded, so the history shows when an item changed place, such as an inbox capture filed into its project.                                                     |
 | =org-log-state-notes-insert-after-drawers= | =nil=       | Has no effect while notes go into the drawer. In a file that turns the drawer off (=#+STARTUP: nologdrawer=), notes go right under the heading, ahead of its other drawers. |
+
+Which state changes are logged is set by the TODO keywords themselves; see
+[[file:workflow.org::*States][States]].
 
 * Archive and habits
 

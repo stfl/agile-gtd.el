@@ -41,6 +41,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 
 **TODO keywords**
 - Sequence: `TODO → NEXT → WAIT → PROJ → EPIC | DONE, IDEA, KILL`
+- Logging lives in the selectors of `agile-gtd-todo-keywords` (`NEXT(n!)`, `WAIT(w@/!)`, `PROJ(p!)`, `EPIC(e!)`, `DONE(d@)`, `KILL(k@)`); nothing parses those strings, Org strips the suffixes into `org-todo-keywords-1`
 - Public accessors: `agile-gtd-project-keyword`, `agile-gtd-action-keywords`
 
 **View ranges** (`agile-gtd-view-ranges`: today -> sprint -> upcoming -> all -> someday)

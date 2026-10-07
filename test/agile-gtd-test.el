@@ -58,6 +58,7 @@
           (org-log-repeat org-log-repeat)
           (org-log-redeadline org-log-redeadline)
           (org-log-reschedule org-log-reschedule)
+          (org-log-refile org-log-refile)
           (org-log-state-notes-insert-after-drawers
            org-log-state-notes-insert-after-drawers)
           (org-archive-location org-archive-location)
@@ -142,6 +143,7 @@
       (should (eq org-log-repeat 'time))
       (should (eq org-log-redeadline 'time))
       (should (eq org-log-reschedule 'time))
+      (should (eq org-log-refile 'time))
       (should-not org-log-state-notes-insert-after-drawers))
     (ert-info ("Archive and habits")
       (should (equal org-archive-location
@@ -172,6 +174,29 @@
     (ert-info ("Inheritance")
       (should (eq org-use-property-inheritance t))
       (should (eq org-use-tag-inheritance t)))))
+
+(ert-deftest agile-gtd-todo-keywords-log-every-move-but-capture ()
+  "Entering NEXT, PROJ or EPIC logs the time, and leaving WAIT does too.
+Entering WAIT, DONE or KILL asks for a note.  TODO and IDEA log nothing.
+The selector suffixes stay out of the keyword names, so every query and
+face keyed by a bare keyword still finds it."
+  (agile-gtd-test-with-sandbox
+    (agile-gtd-enable)
+    (with-temp-buffer
+      (org-mode)
+      (should (equal org-todo-keywords-1
+                     '("TODO" "NEXT" "WAIT" "PROJ" "EPIC" "DONE" "IDEA" "KILL")))
+      (dolist (expected '(("NEXT" time nil)
+                          ("WAIT" note time)
+                          ("PROJ" time nil)
+                          ("EPIC" time nil)
+                          ("DONE" note nil)
+                          ("KILL" note nil)))
+        (ert-info ((car expected))
+          (should (equal (assoc (car expected) org-todo-log-states) expected))))
+      (dolist (silent '("TODO" "IDEA"))
+        (ert-info (silent)
+          (should-not (assoc silent org-todo-log-states)))))))
 
 (ert-deftest agile-gtd-enable-removes-org-own-blockers ()
   "Org's own dependency blockers leave `org-blocker-hook' with their options.
@@ -208,7 +233,7 @@ options' Customize setters, which a plain assignment does not run."
   (agile-gtd-test-with-sandbox
     (let* ((agile-gtd-enable-org-settings nil)
            (variables '(org-agenda-dim-blocked-tasks org-log-into-drawer
-                        org-log-done org-archive-location org-modules
+                        org-log-done org-log-refile org-archive-location org-modules
                         org-habit-preceding-days org-agenda-span
                         org-deadline-warning-days org-use-property-inheritance))
            (before (mapcar #'symbol-value variables)))

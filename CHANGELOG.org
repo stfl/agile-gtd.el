@@ -1,5 +1,17 @@
 #+title: Changelog
 
+* Unreleased
+
+** Every state past capture is logged
+
+The default ~agile-gtd-todo-keywords~ logs each move into the =LOGBOOK=:
+entering =NEXT=, =PROJ= or =EPIC= records the time, entering =WAIT= asks for
+a note on what it waits on, and leaving =WAIT= records the time
+(=NEXT(n!)=, =WAIT(w@/!)=, =PROJ(p!)=, =EPIC(e!)=). =TODO=, =IDEA=, =DONE=
+and =KILL= are unchanged. A refile records its time too:
+~org-log-refile~ is set to =time=. A configuration that sets
+~agile-gtd-todo-keywords~ itself keeps its own keywords.
+
 * 0.7.0
 
 Requires org-records-mcp 0.12.0.
