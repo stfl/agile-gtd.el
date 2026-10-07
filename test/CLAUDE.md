@@ -12,7 +12,7 @@ ERT suites, split by concern:
 | `agile-gtd-startup-test.el` | the project registry, its normalisation and skip-and-warn, and the project-tag startup check |
 | `agile-gtd-links-test.el` | the `org-store-link` advice: `:ID:` versus `:CUSTOM_ID:` by file location, the kill-ring copy, non-interactive calls (org-records-mcp's link minting) left alone, the two flags |
 | `agile-gtd-org-records-mcp-test.el` | the org-records-mcp view keys, called through `org-records-mcp--tool-view` over fixture files; computed fields, refusals, the apply step and its flag; the keys and computed fields org-view's schema lists, read over tools/list |
-| `agile-gtd-loop-test.el` | the agent/human loop: the loop tags kept out of inheritance beside the user's own exclusions |
+| `agile-gtd-loop-test.el` | the agent/human loop: the loop tags kept out of inheritance beside the user's own exclusions; `agile-gtd-hand-over` in an Org buffer and an agenda, its one note taken the way a user takes it; the `h` command |
 
 ## Isolation
 

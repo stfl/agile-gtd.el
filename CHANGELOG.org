@@ -21,6 +21,17 @@ children. Entries of your own in that variable stay. A tag dropped from
 ~agile-gtd-loop-tags~ is inherited again after the next refresh, unless you
 had excluded it yourself.
 
+** Hand an item to the agent, and list what waits on you
+
+~agile-gtd-hand-over~ hands the item at point, in an Org buffer or an agenda,
+to the agent: it takes =human= off, puts =agent= on, and asks for one note. A
+=TODO= or =NEXT= item moves to =WAIT= and the note is the =WAIT= note; any
+other item keeps its state and takes a plain =LOGBOOK= note. The new =h=
+agenda command, /My Moves/, and the new org-records-mcp view key =human= list
+the open items tagged =human= on the item itself, by rank. The tag names are
+~agile-gtd-agent-tag~ and ~agile-gtd-human-tag~; see
+[[file:docs/agent-loop.org][Working with an agent]].
+
 * 0.7.0
 
 Requires org-records-mcp 0.12.0.

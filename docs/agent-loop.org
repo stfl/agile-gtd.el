@@ -1,0 +1,66 @@
+#+title: Working with an agent
+
+How to hand an item to an AI agent and find the items waiting on you, using
+two tags that say whose move an item is. Back to the [[file:../README.org][README]].
+
+* Whose move it is
+
+An agent working through org-records-mcp and you share one outline. The TODO
+state says what an item is; two tags say who acts on it next:
+
+| Tag     | Whose move                                |
+|---------+-------------------------------------------|
+| =agent= | The agent's: it picks the item up next.   |
+| =human= | Yours: you answer, decide or review next. |
+
+Both tags stay on the heading that carries them. A project tagged =human=
+asks you about the project, and each of its tasks stays whoever's it was:
+agile-gtd keeps both tags out of tag inheritance on every refresh (see
+[[file:org-settings.org::*Inheritance][Inheritance]]). The names are =agile-gtd-agent-tag= and
+=agile-gtd-human-tag=.
+
+* Handing an item over
+
+=agile-gtd-hand-over= hands the item at point to the agent. It works on the
+heading at point in an Org buffer and on the item at point in an agenda, so
+you can step through /My Moves/ and hand over as you go. It takes =human= off
+the item, puts =agent= on it, and asks for one note:
+
+| The item is                                 | Its state becomes | The note is                              |
+|---------------------------------------------+-------------------+------------------------------------------|
+| =TODO= or =NEXT=                            | =WAIT=            | the note Org asks for on entering =WAIT= |
+| =WAIT=, =PROJ=, =EPIC=, done, or no keyword | unchanged         | a plain =LOGBOOK= note                   |
+
+The note is what the agent needs to go on. Leave it empty when the tag says
+enough: the =LOGBOOK= still records when the item changed hands. A handed-over
+action reads like this:
+
+#+begin_example
+,* WAIT [#B] Draft the reply to the vendor                              :agent:
+:LOGBOOK:
+- State "WAIT"       from "NEXT"       [2026-10-07 Wed 17:40] \\
+  Use the figures from the last quarter.
+:END:
+#+end_example
+
+Org asks for the note in its usual note buffer once the command returns.
+Cancelling it there keeps the hand-over and logs nothing. The package
+installs no key for the command; bind it in =org-mode-map= and
+=org-agenda-mode-map= if you use it often.
+
+Handing an item back is the agent's move: it swaps =agent= for =human=
+through org-records-mcp.
+
+* Your moves
+
+The =h= agenda command, /My Moves/, lists every open item tagged =human= on
+the item itself, grouped by rank like the other agenda blocks. It takes no
+range: every priority shows, and a blocked item shows dimmed, because
+unblocking it may be the move. Its header stays when nothing waits on you.
+
+An assistant asks the same question through the =human= view key; see
+[[file:org-records-mcp.org][Views for AI assistants]].
+
+An action handed to the agent is a =WAIT= like any other, so it stays in the
+Next Actions blocks and the =next= view keys: the agenda lists what is open,
+whoever's move it is.

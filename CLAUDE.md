@@ -56,6 +56,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 - `agile-gtd-agenda-query-next-actions` — unblocked NEXT/WAIT, or any open task inside `today` regardless of blocking, cut at the range. `hide-today` (passed by the agenda blocks under the day block) removes everything inside `today` by rank, from both halves, at every range, so the `[today]` block is always empty
 - `agile-gtd-agenda-query-backlog` — PROJ and standalone NEXT/WAIT, blocked included
 - `agile-gtd-agenda-query-inbox` — unprocessed inbox items
+- `agile-gtd-agenda-query-human` — open items carrying `agile-gtd-human-tag` locally (`tags-local`, so it holds whatever `org-tags-exclude-from-inheritance` says); feeds the `h` command and the `human` view key
 - `agile-gtd-agenda-query-stuck-projects` — PROJ or EPIC (`agile-gtd--container-keywords`) with no open PROJ/EPIC/NEXT/WAIT child
 - Project-specific agenda commands generated from `agile-gtd-projects`
 
@@ -64,7 +65,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 - `agile-gtd--area-agenda-command` builds `a`, `pp`, `ww` and `w<key>` from it; the org-records-mcp views are built from the same rows. A change to what an area filters or defaults to goes in the table, never in one consumer
 
 **org-records-mcp views** (`agile-gtd--apply-org-records-mcp`, behind `agile-gtd-enable-org-records-mcp`)
-- `agile-gtd-org-records-mcp-views` generates keys `[<area>-]<view>[-<range>]`: 13 per area plus `inbox` and `tangling`. Each carries a literal `:query` and no `:filter`/`:range`, so org-records-mcp refuses parameters
+- `agile-gtd-org-records-mcp-views` generates keys `[<area>-]<view>[-<range>]`: 13 per area plus `inbox`, `tangling` and `human`. Each carries a literal `:query` and no `:filter`/`:range`, so org-records-mcp refuses parameters
 - The apply step merges views and the `rank`/`parent-priority` computed fields by name (dropping keys recorded in `agile-gtd--org-records-mcp-view-names` from the previous refresh), adds `rank` to `org-records-mcp-list-computed-fields` (what a match list carries unasked; `all` and the user's names are kept), sets `org-records-mcp-query-sort-fn`, `org-records-mcp-view-catalogue-function`, `org-records-mcp-allowed-files` (nil) and `org-records-mcp-file-scope-override` (t). It never starts the MCP server
 - `blocked` and `breadcrumbs` are org-records-mcp node fields, not agile-gtd computed fields. `blocked` answers `org-blocker-hook`, so it sees org-edna's blockers only while `agile-gtd--apply-org-settings` keeps `org-edna-mode` on
 - `agile-gtd-org-records-mcp-view-catalogue` writes the `org-view` description from the area table and range list; keep its words in step with the queries
@@ -97,6 +98,11 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 - The kill-ring advice runs at depth -50, outermost, so it reads `org-stored-links` after the ID advice; it never writes `org-stored-links`, whose form `org-insert-last-stored-link` relies on
 - org-roam is not a dependency: `org-roam-directory` is read with `bound-and-true-p`
 - [docs/storing-links.org](docs/storing-links.org) describes the behaviour and the org-records-mcp contract for users
+
+**Agent/human loop** (`agile-gtd-agent-tag`, `agile-gtd-human-tag`, `agile-gtd-loop-tags`)
+- The two tags say whose move an item is; states stay the human's. `agile-gtd-loop-tags` is kept out of inheritance by `agile-gtd--apply-loop-tags` (under Org settings)
+- `agile-gtd-hand-over` swaps the local `human` tag for `agent`, then either `org-todo "WAIT"` (TODO/NEXT, `agile-gtd--hand-over-waits-p`) or `org-add-note`; in an agenda the `org-agenda-*` equivalents, so the lines update. The note is Org's own deferred prompt (`post-command-hook`), and exactly one: a second `org-add-log-setup` would overwrite the WAIT note. WAIT stays WAIT with a plain note, because `org-todo` logs a WAIT-to-WAIT change. There is no hand-back command: the agent hands back through org-records-mcp
+- The `h` command dims blocked items (command-level `org-agenda-dim-blocked-tasks`, as the backlogs do). WAIT `agent` items stay in the next-actions queries: no existing filter reads the loop tags
 
 **org-edna integration**
 - `agile-gtd-trigger-next-sibling` / `agile-gtd-blocker-previous-sibling` wire up task-chaining via org-edna triggers/blockers

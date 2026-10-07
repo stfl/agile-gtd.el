@@ -145,14 +145,29 @@ TODO and IDEA record nothing."
   :type 'string
   :group 'agile-gtd)
 
+(defcustom agile-gtd-agent-tag "agent"
+  "Tag on an item whose next move is the agent\\='s.
+`agile-gtd-hand-over' puts it on the item it hands over."
+  :type 'string
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-human-tag "human"
+  "Tag on an item whose next move is the human\\='s.
+The `h' agenda command and the org-records-mcp `human' view list the
+open items carrying it themselves; `agile-gtd-hand-over' takes it off."
+  :type 'string
+  :group 'agile-gtd)
+
 (defcustom agile-gtd-loop-tags '("agent" "human")
   "Tags that stay on the heading carrying them and never reach its children.
 They say whose move an item is, and a tag on a project must not hand
-every child over with it.  While `agile-gtd-enable-org-settings' is on,
-every refresh adds them to `org-tags-exclude-from-inheritance' and keeps
-the names already there.  A name dropped from this list is inherited
-again after the next refresh, unless it was excluded before agile-gtd
-added it."
+every child over with it.  The list holds `agile-gtd-agent-tag' and
+`agile-gtd-human-tag'; keep it in step when renaming either.
+
+While `agile-gtd-enable-org-settings' is on, every refresh adds these
+tags to `org-tags-exclude-from-inheritance' and keeps the names already
+there.  A name dropped from this list is inherited again after the next
+refresh, unless it was excluded before agile-gtd added it."
   :type '(repeat string)
   :group 'agile-gtd)
 
@@ -927,6 +942,15 @@ these are included."
   `(and (todo)
         (tags ,@agile-gtd-inbox-tags)))
 
+(defun agile-gtd-agenda-query-human ()
+  "Return org-ql sexp for the human\\='s moves.
+These are the open items carrying `agile-gtd-human-tag' themselves.  The
+tag is read off the item alone, whatever `org-tags-exclude-from-inheritance'
+says: a project tagged for the human asks about the project, not about
+each of its tasks."
+  `(and (todo)
+        (tags-local ,agile-gtd-human-tag)))
+
 (defun agile-gtd-agenda-query-backlog (&optional tag-filter range)
   "Return org-ql sexp for the backlog inside RANGE.
 The backlog holds projects and standalone next actions, blocked ones
@@ -1107,6 +1131,14 @@ the day block above it already carries."
                     ((org-ql-block-header "Inbox")
                      (org-super-agenda-groups '((:auto-property "CREATED")))))))
     ,(agile-gtd--area-agenda-command (agile-gtd--area nil))
+    ;; Every open item the human has to answer, at any priority and blocked
+    ;; or not: a blocked one is shown dimmed, for the reason the backlog
+    ;; commands give, because unblocking it may be the move.
+    ("h" "My Moves"
+     ((agile-gtd-agenda-ql-block (agile-gtd-agenda-query-human)
+                                 ((org-ql-block-header "My Moves")
+                                  (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
+     ((org-agenda-dim-blocked-tasks t)))
     ("A" "Agenda Weekly"
      ((agenda ""
               ((org-agenda-span 'week)
@@ -1469,6 +1501,43 @@ any agenda buffer happens to be showing."
   (agile-gtd-trigger-next-sibling)
   (agile-gtd-blocker-previous-sibling))
 
+(defun agile-gtd--hand-over-waits-p (state)
+  "Non-nil when handing over an item in STATE moves it to WAIT.
+An action not yet waiting does.  An item already waiting keeps its state,
+so Org does not log a change from WAIT to WAIT."
+  (member state '("TODO" "NEXT")))
+
+;;;###autoload
+(defun agile-gtd-hand-over ()
+  "Hand the item at point to the agent, asking for one note.
+Works on the heading at point in an Org buffer and on the item at point
+in an agenda.  The item loses its own `agile-gtd-human-tag' and gains
+`agile-gtd-agent-tag'.  A TODO or NEXT item moves to WAIT, and the note
+Org asks for on entering WAIT is the hand-over note.  Any other item
+keeps its state and gets a plain LOGBOOK note.  The note may be left
+empty: the tag alone hands the item over, and the LOGBOOK still records
+when.  Org asks for the note once the command returns, in its usual note
+buffer."
+  (interactive)
+  (if (derived-mode-p 'org-agenda-mode)
+      (let ((state (org-with-point-at (or (org-get-at-bol 'org-hd-marker)
+                                          (org-agenda-error))
+                     (org-get-todo-state))))
+        (org-agenda-set-tags agile-gtd-human-tag 'off)
+        (org-agenda-set-tags agile-gtd-agent-tag 'on)
+        (if (agile-gtd--hand-over-waits-p state)
+            (org-agenda-todo "WAIT")
+          (org-agenda-add-note)))
+    (unless (derived-mode-p 'org-mode)
+      (user-error "Not in an Org or agenda buffer"))
+    (save-excursion
+      (org-back-to-heading t)
+      (org-toggle-tag agile-gtd-human-tag 'off)
+      (org-toggle-tag agile-gtd-agent-tag 'on)
+      (if (agile-gtd--hand-over-waits-p (org-get-todo-state))
+          (org-todo "WAIT")
+        (org-add-note)))))
+
 (defun agile-gtd--item-rank ()
   "Return the virtual priority rank for the Org item at point."
   (let* ((element     (org-element-at-point))
@@ -1640,12 +1709,17 @@ included, no habits")
 takes no range"))
   "The views every area asks, each with what it holds for the catalogue.")
 
-(defconst agile-gtd--org-records-mcp-global-views
-  '((inbox . "open items carrying an inbox tag; asked of everything only, \
+(defun agile-gtd--org-records-mcp-global-views ()
+  "Return the views asked of everything only, each with what it holds.
+They take neither area nor range."
+  `((inbox . "open items carrying an inbox tag; asked of everything only, \
 with no area and no range")
     (tangling . "open items under a done ancestor; asked of everything only, \
-with no area and no range"))
-  "The views asked of everything only, taking neither area nor range.")
+with no area and no range")
+    (human . ,(format "open items tagged %s on the item itself, never by \
+inheritance: the human's moves, at any priority, blocked ones included; asked \
+of everything only, with no area and no range"
+                      agile-gtd-human-tag))))
 
 (defun agile-gtd--org-records-mcp-range-description (range)
   "Return what RANGE admits, for the catalogue."
@@ -1709,7 +1783,8 @@ refuses both.  The areas are `agile-gtd-areas', the same table the agenda
 commands are built from."
   (append (mapcan #'agile-gtd--org-records-mcp-area-views (agile-gtd-areas))
           (list (list 'inbox :query (agile-gtd-agenda-query-inbox))
-                (list 'tangling :query '(agile-gtd-tangling)))))
+                (list 'tangling :query '(agile-gtd-tangling))
+                (list 'human :query (agile-gtd-agenda-query-human)))))
 
 (defun agile-gtd--org-records-mcp-computed-fields ()
   "Return the computed fields agile-gtd gives every org-records-mcp node."
@@ -1773,7 +1848,8 @@ range.  A key is [<area>-]<view>[-<range>], for example private-next, \
      (mapconcat (lambda (view)
                   (agile-gtd--org-records-mcp-catalogue-entry
                    item (format "%s - %s" (car view) (cdr view))))
-                (append agile-gtd--org-records-mcp-views agile-gtd--org-records-mcp-global-views)
+                (append agile-gtd--org-records-mcp-views
+                        (agile-gtd--org-records-mcp-global-views))
                 "")
      indent "range - narrowest first, optional on next and backlog:\n"
      (mapconcat (lambda (range)

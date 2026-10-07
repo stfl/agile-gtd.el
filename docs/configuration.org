@@ -12,7 +12,8 @@ configuring:
 - inbox and project capture templates
 - agenda files and refile targets
 - org-ql predicates
-- agenda commands for inbox, today, review, stuck projects, and backlog views
+- agenda commands for inbox, today, review, stuck projects, backlog views, and
+  the items waiting on you (see [[file:agent-loop.org][Working with an agent]])
 - org-records-mcp view keys, computed fields, sorting and file scope, unless
   =agile-gtd-enable-org-records-mcp= is nil; see [[file:org-records-mcp.org][Views for AI assistants (org-records-mcp)]]
 - the Org options the workflow depends on: org-edna-mode, logging into the
