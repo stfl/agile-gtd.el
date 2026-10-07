@@ -58,7 +58,8 @@ exactly one turn; see [[file:docs/agent-loop.org::*Whose turn it is][Whose turn 
 
 The new =h= agenda command, /My Moves/, shows the three turns as three
 blocks, by rank, and searches the files in the new ~agile-gtd-loop-files~
-(nil by default) beside the agenda files. The new org-records-mcp view keys
+(nil by default) beside the agenda files, skipping a file it cannot read.
+The new org-records-mcp view keys
 =human-turn=, =agent-turn= and =agent-wait= ask the same of the agenda files
 alone.
 

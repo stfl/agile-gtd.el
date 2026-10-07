@@ -78,7 +78,8 @@ org-ql predicate:
 | The agent's move     | =(agent-turn)= | one of the four kinds below                                                       |
 | The agent is working | =(agent-wait)= | tagged =%agent= and claimed, open, neither =TODO=, =NEXT= nor =SOMEDAY=           |
 
-The agent's move comes in four kinds, and =(agent-turn KIND)= asks for one:
+The agent's move comes in four kinds, and =(agent-turn KIND)= asks for one,
+the kind written as a symbol or a string:
 
 | Kind        | The item                                                              | It means                                                                                    |
 |-------------+-----------------------------------------------------------------------+---------------------------------------------------------------------------------------------|
@@ -128,7 +129,8 @@ header stays when it is empty.
 
 =h= searches the agenda files and the files in =agile-gtd-loop-files=, nil by
 default. List there a file of loop items you keep out of the agenda, such as
-an agent's working file; a relative name is read against =org-directory=:
+an agent's working file; a relative name is read against =org-directory=, and
+a file that does not exist or cannot be read is skipped:
 
 #+begin_src emacs-lisp
 (setopt agile-gtd-loop-files '("agentic.org"))

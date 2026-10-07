@@ -632,6 +632,10 @@ adds are the names `computed' lists."
           (should (string-match-p (regexp-quote kind) description)))
         (should (string-match-p "agent-wait - items tagged %agent carrying AGENT_CLAIM"
                                 description)))
+      (ert-info ("SOMEDAY is read inherited, unlike the loop tags")
+        (should (string-match-p "the loop tags count on the item itself" description))
+        (should (string-match-p "withdrawn ([^)]*SOMEDAY, inherited too)" description))
+        (should (string-match-p "agent-wait - [^;]*SOMEDAY, inherited too" description)))
       (ert-info ("the per-area defaults")
         (should (string-match-p "sprint for everything and private" description))
         (should (string-match-p "upcoming for work, alpha and beta" description)))

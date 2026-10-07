@@ -182,9 +182,9 @@ it back to TODO or NEXT, or parked it; see `agent-wait'."
 (defcustom agile-gtd-loop-files nil
   "Files the `h' agenda command searches besides `org-agenda-files'.
 They hold loop items kept out of the agenda, such as an agent\\='s
-working file.  Relative names are expanded against `org-directory'.  The
-org-records-mcp view keys never search them: they cover the agenda
-files alone."
+working file.  Relative names are expanded against `org-directory', and
+a file that cannot be read is skipped.  The org-records-mcp view keys
+never search them: they cover the agenda files alone."
   :type '(repeat file)
   :group 'agile-gtd)
 
@@ -1713,10 +1713,17 @@ KIND is one of `agile-gtd--agent-turn-kinds', by item:
              `agile-gtd-agent-claim-property' while TODO or NEXT,
              without the agent tag, or SOMEDAY.
 
-A tag counts on the item itself.  See `agile-gtd--turn'."
+KIND may be a string, as org-ql\\='s string syntax passes it.  A tag
+counts on the item itself.  See `agile-gtd--turn'."
   :normalizers ((`(,predicate-names) '(agile-gtd-agent-turn))
-                (`(,predicate-names ,(or (and (pred symbolp) kind) `(quote ,kind)))
-                 `(agile-gtd-agent-turn ',(agile-gtd--agent-turn-kind kind))))
+                (`(,predicate-names ,(or (and (pred symbolp) kind)
+                                         `(quote ,kind)
+                                         (and (pred stringp) (app intern kind))))
+                 `(agile-gtd-agent-turn ',(agile-gtd--agent-turn-kind kind)))
+                ;; Anything else would reach org-ql as a call to a function
+                ;; that does not exist.
+                (`(,predicate-names . ,args)
+                 (agile-gtd--agent-turn-kind args)))
   :preambles (((and `(,predicate-names) form)
                (agile-gtd--turn-preamble 'agent-turn form))
               ((and `(,predicate-names (quote ,kind)) form)
@@ -1739,11 +1746,15 @@ and not SOMEDAY.  See `agile-gtd--turn'."
              (eq (agile-gtd--turn) 'agent-wait)))
 
 (defun agile-gtd--loop-agenda-files ()
-  "Return the files the loop\\='s agenda blocks search, each once.
+  "Return the readable files the loop\\='s agenda blocks search, each once.
 These are the agenda files, then `agile-gtd-loop-files' expanded against
-`org-directory'."
-  (seq-uniq (append (org-agenda-files)
-                    (mapcar #'agile-gtd--expand-org-path agile-gtd-loop-files))))
+`org-directory'.  A file that cannot be read is left out.  Org would
+otherwise offer to remove it from the list, and in doing so save this
+list, loop files included, as the user\\='s `org-agenda-files'."
+  (seq-filter #'file-readable-p
+              (seq-uniq (append (org-agenda-files)
+                                (mapcar #'agile-gtd--expand-org-path
+                                        agile-gtd-loop-files)))))
 
 (defun agile-gtd--item-rank ()
   "Return the virtual priority rank for the Org item at point."
@@ -1929,21 +1940,22 @@ with no area and no range")
             (task (string-join (agile-gtd--task-keywords) "/"))
             (todo (agile-gtd--todo-keyword))
             (wait (agile-gtd--wait-keyword))
-            (only "; tags count on the item itself, at any priority, blocked \
-ones included; asked of everything only, with no area and no range"))
+            (only "; the loop tags count on the item itself, at any \
+priority, blocked ones included; asked of everything only, with no area and \
+no range"))
         `((human-turn . ,(format "items tagged %s with no %s tag and no %s \
 property, open, neither %s nor %s: the human's moves%s"
                                  human agent claim wait todo only))
           (agent-turn . ,(format "the agent's moves, of four kinds: delegated \
 \(tagged %s, open, no %s), replied (tagged %s alone, open, no %s, and %s or \
 %s), answered (tagged %s alone, done, no %s) and withdrawn (tagged %s and \
-done, or carrying %s while %s, without the %s tag, or %s)%s; org-query takes \
-\(agent-turn KIND) for one kind"
+done, or carrying %s while %s, without the %s tag, or %s, inherited too)%s; \
+org-query takes (agent-turn KIND) for one kind"
                                  agent claim human claim wait todo human claim
                                  agent claim task agent agile-gtd-someday-tag
                                  only))
           (agent-wait . ,(format "items tagged %s carrying %s, open, neither \
-%s nor %s: the agent's work in progress%s"
+%s nor %s, inherited too: the agent's work in progress%s"
                                  agent claim task agile-gtd-someday-tag only))))))
 
 (defun agile-gtd--org-records-mcp-range-description (range)

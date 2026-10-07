@@ -560,9 +560,24 @@ for a tag; the turns read the heading's real tags."
 (ert-deftest agile-gtd-agent-turn-refuses-an-unknown-kind ()
   "A misspelt kind of agent turn fails loudly rather than matching nothing."
   (agile-gtd-loop-test-with-file "* NEXT The agent's move :%agent:\n"
-    (dolist (query '((agent-turn delegate) (agent-turn human-turn) (agent-turn 'agent-wait)))
+    (dolist (query '((agent-turn delegate) (agent-turn human-turn) (agent-turn 'agent-wait)
+                     (agent-turn "delegate") (agent-turn 1) (agent-turn delegated replied)))
       (ert-info ((format "%S" query))
         (should-error (org-ql-select buffer query) :type 'user-error)))))
+
+(ert-deftest agile-gtd-agent-turn-takes-a-kind-as-a-string ()
+  "A kind written as a string, as org-ql's string syntax passes it, answers as the symbol."
+  (agile-gtd-loop-test-with-file
+      (concat "* NEXT The agent's move :%agent:\n"
+              "* WAIT The human acted :%human:\n")
+    (dolist (kind '(delegated replied))
+      (ert-info ((symbol-name kind))
+        (let ((titles (org-ql-select buffer `(agent-turn ,kind)
+                        :action '(org-get-heading t t t t))))
+          (should titles)
+          (should (equal (org-ql-select buffer `(agent-turn ,(symbol-name kind))
+                           :action '(org-get-heading t t t t))
+                         titles)))))))
 
 
 ;;; The `h' command
@@ -666,6 +681,21 @@ for a tag; the turns read the heading's real tags."
                 (should-not (string-search "Loop question" (buffer-string))))))
         (when-let* ((loop-buffer (find-buffer-visiting loop-file)))
           (kill-buffer loop-buffer))))))
+
+(ert-deftest agile-gtd-agenda-h-skips-a-file-it-cannot-read ()
+  "A missing loop file or agenda file is skipped, and Org never asks about it.
+With `agile-gtd-enable-org-settings' off, `org-agenda-skip-unavailable-files'
+keeps Org's default, nil, and Org would offer to remove the file, saving
+the list `h' searches, loop files included, as the user's agenda files."
+  (agile-gtd-loop-test-with-file "* NEXT [#A] Agenda question :%human:\n"
+    (let ((agenda (list file (expand-file-name "gone.org" org-directory))))
+      (setq agile-gtd-enable-org-settings nil
+            org-agenda-skip-unavailable-files nil
+            agile-gtd-loop-files '("missing.org"))
+      (agile-gtd-refresh)
+      (setq org-agenda-files agenda)
+      (should (string-search "Agenda question" (agile-gtd-loop-test-h-text)))
+      (should (equal org-agenda-files agenda)))))
 
 (provide 'agile-gtd-loop-test)
 ;;; agile-gtd-loop-test.el ends here
