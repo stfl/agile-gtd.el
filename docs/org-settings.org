@@ -136,6 +136,6 @@ configuration.
 Org's default for =org-use-tag-inheritance= is already =t=; agile-gtd states
 it because the workflow breaks without it.
 
-The =agent= and =human= tags are kept out of inheritance on every refresh,
+The =%agent= and =%human= tags are kept out of inheritance on every refresh,
 whether or not this step is on, through =org-tags-exclude-from-inheritance=;
 see [[file:agent-loop.org::*Whose move it is][Whose move it is]].

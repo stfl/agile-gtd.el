@@ -59,12 +59,13 @@
      "** NEXT Private low project step\n\n"
      "* PROJ Private stuck project\n"
      "** TODO Private notes\n\n"
-     ;; The human's moves: tagged on the item itself.  The step does not
-     ;; inherit the tag, and a done item is no longer anyone's move.
-     "* TODO [#B] Private question for the human :human:\n\n"
-     "* PROJ [#F] Private project for the human :human:\n"
+     ;; Tagged for the human on the item itself.  The TODO is deferred and
+     ;; the done item answered, both the agent's move; the project is the
+     ;; human's.  The step does not inherit the tag.
+     "* TODO [#B] Private question for the human :%human:\n\n"
+     "* PROJ [#F] Private project for the human :%human:\n"
      "** NEXT Private step under the human's project\n\n"
-     "* DONE Private answered question :human:\n\n"
+     "* DONE Private answered question :%human:\n\n"
      "* NEXT [#A] Private someday :SOMEDAY:\n\n"
      "* NEXT [#B] Work action :#work:\n\n"
      "* NEXT Work default action :#work:\n\n"
@@ -306,24 +307,46 @@ Its undated step is not pulled along: it ranks where its own cookie puts it."
                    '("Alpha stuck project")))
     (should-not (agile-gtd-org-records-mcp-test-titles "beta-stuck"))))
 
-(ert-deftest agile-gtd-org-records-mcp-inbox-tangling-and-human-are-global ()
-  "`inbox', `tangling' and `human' exist once, and take neither area nor range."
+(ert-deftest agile-gtd-org-records-mcp-inbox-tangling-and-the-turns-are-global ()
+  "`inbox', `tangling' and the three turns exist once, and take neither area nor range."
   (agile-gtd-org-records-mcp-test-with-fixtures
     (should (equal (agile-gtd-org-records-mcp-test-titles "inbox") '("Inbox capture")))
     (should (equal (agile-gtd-org-records-mcp-test-titles "tangling") '("Tangled leftover")))
     (dolist (key '("private-inbox" "work-tangling" "inbox-today" "tangling-all"
-                   "stuck-sprint" "private-human" "human-today"))
+                   "stuck-sprint" "private-human-turn" "human-turn-today"
+                   "work-agent-turn" "agent-wait-all" "human"))
       (ert-info (key)
         (should (string-match-p "Unknown view"
                                 (agile-gtd-org-records-mcp-test-refusal
                                  (lambda () (agile-gtd-org-records-mcp-test-view key)))))))))
 
-(ert-deftest agile-gtd-org-records-mcp-human-lists-the-human-s-moves ()
-  "`human' holds the open items tagged `human' themselves, most urgent first.
-A project's step does not inherit the tag, and a done item is no one's move."
+(ert-deftest agile-gtd-org-records-mcp-turn-keys-list-each-turn-of-the-agenda-files ()
+  "`human-turn', `agent-turn' and `agent-wait' answer each turn, most urgent first.
+They search the agenda files alone, never `agile-gtd-loop-files'.  A
+project's step does not inherit a loop tag."
   (agile-gtd-org-records-mcp-test-with-fixtures
-    (should (equal (agile-gtd-org-records-mcp-test-titles "human")
-                   '("Private question for the human" "Private project for the human")))))
+    (let ((loop (expand-file-name "loop.org" org-directory))
+          (outside (expand-file-name "agentic.org" org-directory)))
+      (with-temp-file loop
+        (insert "* NEXT [#B] Loop question for the human :%human:\n\n"
+                "* NEXT [#A] Loop task for the agent :%agent:\n\n"
+                "* WAIT [#C] Loop work the agent holds :%agent:\n"
+                ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n"))
+      (with-temp-file outside
+        (insert "* NEXT [#A] Outside question for the human :%human:\n\n"
+                "* NEXT [#A] Outside task for the agent :%agent:\n\n"
+                "* WAIT [#A] Outside work the agent holds :%agent:\n"
+                ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n"))
+      (setq org-agenda-files (append org-agenda-files (list loop))
+            agile-gtd-loop-files (list outside))
+      (should (equal (agile-gtd-org-records-mcp-test-titles "human-turn")
+                     '("Loop question for the human" "Private project for the human")))
+      (ert-info ("delegated, then replied (a TODO deferred by the human), then answered")
+        (should (equal (agile-gtd-org-records-mcp-test-titles "agent-turn")
+                       '("Loop task for the agent" "Private question for the human"
+                         "Private answered question"))))
+      (should (equal (agile-gtd-org-records-mcp-test-titles "agent-wait")
+                     '("Loop work the agent holds"))))))
 
 (defun agile-gtd-org-records-mcp-test-area-keys (area)
   "Return the thirteen keys the grammar gives AREA, a key prefix."
@@ -343,7 +366,7 @@ A project's step does not inherit the tag, and a done item is no one's move."
     (split-string (match-string 1 message) ", " t)))
 
 (ert-deftest agile-gtd-org-records-mcp-key-count ()
-  "Thirteen keys per area, plus `inbox', `tangling' and `human', each resolving."
+  "Thirteen keys per area, plus `inbox', `tangling' and the three turns, each resolving."
   (agile-gtd-org-records-mcp-test-with-fixtures
     (let ((resolves (lambda (key)
                       (not (agile-gtd-org-records-mcp-test-refusal
@@ -351,7 +374,7 @@ A project's step does not inherit the tag, and a done item is no one's move."
           (listed (agile-gtd-org-records-mcp-test-listed-keys)))
       (ert-info ("the grammar's keys and the keys org-view lists are one set")
         (should (equal (sort (copy-sequence listed) #'string<)
-                       (sort (append '("inbox" "tangling" "human")
+                       (sort (append '("inbox" "tangling" "human-turn" "agent-turn" "agent-wait")
                                      (mapcan #'agile-gtd-org-records-mcp-test-area-keys
                                              agile-gtd-org-records-mcp-test-areas))
                              #'string<))))
@@ -390,7 +413,7 @@ A project's step does not inherit the tag, and a done item is no one's move."
 (ert-deftest agile-gtd-org-records-mcp-nodes-carry-rank-unasked ()
   "A view's nodes carry `rank' and no other computed field unasked."
   (agile-gtd-org-records-mcp-test-with-fixtures
-    (dolist (key '("next" "work-backlog" "inbox" "tangling" "human"))
+    (dolist (key '("next" "work-backlog" "inbox" "tangling" "human-turn" "agent-turn"))
       (ert-info (key)
         (dolist (node (agile-gtd-org-records-mcp-test-view key))
           (should (equal (mapcar #'car (alist-get 'computed node)) '(rank))))))))
@@ -599,11 +622,20 @@ adds are the names `computed' lists."
       (should (string-match-p (regexp-quote "[<area>-]<view>[-<range>]") description))
       (dolist (word '("private" "work" "alpha" "beta"
                       "next" "backlog" "upcoming" "stuck" "inbox" "tangling"
-                      "human" "today" "sprint" "all" "someday"))
+                      "human-turn" "agent-turn" "agent-wait"
+                      "today" "sprint" "all" "someday"))
         (ert-info (word)
           (should (string-match-p (regexp-quote word) description))))
-      (ert-info ("the human view names the tag it reads")
-        (should (string-match-p "human - open items tagged human" description)))
+      (ert-info ("the turns name the tags and the claim property")
+        (should (string-match-p "human-turn - items tagged %human" description))
+        (dolist (kind '("delegated" "replied" "answered" "withdrawn"))
+          (should (string-match-p (regexp-quote kind) description)))
+        (should (string-match-p "agent-wait - items tagged %agent carrying AGENT_CLAIM"
+                                description)))
+      (ert-info ("SOMEDAY is read inherited, unlike the loop tags")
+        (should (string-match-p "the loop tags count on the item itself" description))
+        (should (string-match-p "withdrawn ([^)]*SOMEDAY, inherited too)" description))
+        (should (string-match-p "agent-wait - [^;]*SOMEDAY, inherited too" description)))
       (ert-info ("the per-area defaults")
         (should (string-match-p "sprint for everything and private" description))
         (should (string-match-p "upcoming for work, alpha and beta" description)))

@@ -18,5 +18,12 @@ The package exposes org-ql predicates for the workflow's core concepts:
 | =agile-gtd-private=         | non-work item                                                                                                                                  |
 | =agile-gtd-blocked=         | task with an unsatisfied org-edna BLOCKER dependency                                                                                           |
 | =agile-gtd-within-range=    | item ranking inside a range, such as =(agile-gtd-within-range today)=, or at or above a priority's band, such as =(agile-gtd-within-range ?C)= |
+| =human-turn=                | the human's move in the agent loop (alias =agile-gtd-human-turn=)                                                                              |
+| =agent-turn=                | the agent's move, of any kind or of one, such as =(agent-turn replied)= (alias =agile-gtd-agent-turn=)                                         |
+| =agent-wait=                | work the agent has claimed and is doing (alias =agile-gtd-agent-wait=)                                                                         |
 
-These predicates drive agenda commands and review views.
+These predicates drive agenda commands and review views. The three turns,
+and the four kinds of agent turn (=delegated=, =replied=, =answered= and
+=withdrawn=), are defined in [[file:agent-loop.org::*Whose turn it is][Whose turn it is]]. A query names a turn
+rather than the tags and states behind it, so it keeps its meaning however
+those are read.

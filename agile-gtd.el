@@ -145,16 +145,17 @@ TODO and IDEA record nothing."
   :type 'string
   :group 'agile-gtd)
 
-(defcustom agile-gtd-agent-tag "agent"
+(defcustom agile-gtd-agent-tag "%agent"
   "Tag on an item whose next move is the agent\\='s.
 `agile-gtd-hand-over' puts it on the item it hands over."
   :type 'string
   :group 'agile-gtd)
 
-(defcustom agile-gtd-human-tag "human"
+(defcustom agile-gtd-human-tag "%human"
   "Tag on an item whose next move is the human\\='s.
-The `h' agenda command and the org-records-mcp `human' view list the
-open items carrying it themselves; `agile-gtd-hand-over' takes it off."
+Read off the item itself, with its state and the agent\\='s claim, it
+tells whose turn the item is; see `human-turn' and `agent-turn'.
+`agile-gtd-hand-over' takes it off."
   :type 'string
   :group 'agile-gtd)
 
@@ -167,6 +168,24 @@ tags listed here with them.  The names already there stay.  A tag that
 leaves this list, or a renamed agent or human tag, is inherited again
 after the next refresh, unless it was excluded before agile-gtd added it."
   :type '(repeat string)
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-agent-claim-property "AGENT_CLAIM"
+  "Property the agent sets on an item while it works on it.
+The agent sets it when it starts on an item and removes it when it hands
+the item back or finishes.  An open item tagged `agile-gtd-agent-tag'
+that carries it is the agent\\='s work in progress, unless the human set
+it back to TODO or NEXT, or parked it; see `agent-wait'."
+  :type 'string
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-loop-files nil
+  "Files the `h' agenda command searches besides `org-agenda-files'.
+They hold loop items kept out of the agenda, such as an agent\\='s
+working file.  Relative names are expanded against `org-directory', and
+a file that cannot be read is skipped.  The org-records-mcp view keys
+never search them: they cover the agenda files alone."
+  :type '(repeat file)
   :group 'agile-gtd)
 
 (defcustom agile-gtd-projects nil
@@ -945,15 +964,6 @@ these are included."
   `(and (todo)
         (tags ,@agile-gtd-inbox-tags)))
 
-(defun agile-gtd-agenda-query-human ()
-  "Return org-ql sexp for the human\\='s moves.
-These are the open items carrying `agile-gtd-human-tag' themselves.  The
-tag is read off the item alone, whatever `org-tags-exclude-from-inheritance'
-says: a project tagged for the human asks about the project, not about
-each of its tasks."
-  `(and (todo)
-        (tags-local ,agile-gtd-human-tag)))
-
 (defun agile-gtd-agenda-query-backlog (&optional tag-filter range)
   "Return org-ql sexp for the backlog inside RANGE.
 The backlog holds projects and standalone next actions, blocked ones
@@ -1134,14 +1144,22 @@ the day block above it already carries."
                     ((org-ql-block-header "Inbox")
                      (org-super-agenda-groups '((:auto-property "CREATED")))))))
     ,(agile-gtd--area-agenda-command (agile-gtd--area nil))
-    ;; Every open item the human has to answer, at any priority and blocked
-    ;; or not: a blocked one is shown dimmed, for the reason the backlog
-    ;; commands give, because unblocking it may be the move.
+    ;; Each turn of the loop, at any priority and blocked or not: a blocked
+    ;; item is shown dimmed, for the reason the backlog commands give,
+    ;; because unblocking it may be the move.  The loop's files join the
+    ;; agenda files for this command alone.
     ("h" "My Moves"
-     ((agile-gtd-agenda-ql-block (agile-gtd-agenda-query-human)
-                                 ((org-ql-block-header "My Moves")
+     ((agile-gtd-agenda-ql-block '(human-turn)
+                                 ((org-ql-block-header "Your move")
+                                  (org-super-agenda-groups ',(agile-gtd-rank-groups))))
+      (agile-gtd-agenda-ql-block '(agent-turn)
+                                 ((org-ql-block-header "Agent's move")
+                                  (org-super-agenda-groups ',(agile-gtd-rank-groups))))
+      (agile-gtd-agenda-ql-block '(agent-wait)
+                                 ((org-ql-block-header "Agent working")
                                   (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
-     ((org-agenda-dim-blocked-tasks t)))
+     ((org-agenda-dim-blocked-tasks t)
+      (org-agenda-files (agile-gtd--loop-agenda-files))))
     ("A" "Agenda Weekly"
      ((agenda ""
               ((org-agenda-span 'week)
@@ -1569,6 +1587,175 @@ command returns, in its usual note buffer."
       (org-toggle-tag agile-gtd-human-tag 'off)
       (org-toggle-tag agile-gtd-agent-tag 'on))))
 
+(defun agile-gtd--todo-keyword ()
+  "Return the GTD keyword of a captured task nobody has started."
+  "TODO")
+
+(defun agile-gtd--task-keywords ()
+  "Return the keywords of a task to do: neither waiting nor holding work."
+  (list (agile-gtd--todo-keyword) "NEXT"))
+
+(defconst agile-gtd--agent-turn-kinds '(delegated replied answered withdrawn)
+  "The kinds of agent turn, each a reason the agent acts next.")
+
+(defun agile-gtd--turn ()
+  "Return whose turn the heading at point is, or nil when it is in no loop.
+A heading is in the loop when it carries `agile-gtd-agent-tag' or
+`agile-gtd-human-tag' itself, or `agile-gtd-agent-claim-property'.  It is
+then in exactly one turn: `human-turn', `agent-wait', or one of
+`agile-gtd--agent-turn-kinds' for a turn of the agent\\='s.
+
+The tags and the claim are read off the heading alone; SOMEDAY may be
+inherited, and is read last, for a claimed item only.  Notes in the
+LOGBOOK move no turn: the state, the tags and the claim do."
+  (let* ((tags (org-get-tags nil t))
+         (agent (member agile-gtd-agent-tag tags))
+         (human (member agile-gtd-human-tag tags))
+         (claim (org-entry-get nil agile-gtd-agent-claim-property))
+         (done (org-entry-is-done-p))
+         (state (org-get-todo-state)))
+    (cond
+     ((not (or agent human claim)) nil)
+     ;; The human took the work back: closed it, set it back to a task,
+     ;; took the agent's tag off, or parked it.
+     ((or (and agent done)
+          (and claim (or (not agent)
+                         (member state (agile-gtd--task-keywords))
+                         (member agile-gtd-someday-tag (org-get-tags)))))
+      'withdrawn)
+     (agent (if claim 'agent-wait 'delegated))
+     (done 'answered)
+     ;; WAIT: the human acted and hands back.  TODO: not now.
+     ((member state (list (agile-gtd--wait-keyword) (agile-gtd--todo-keyword)))
+      'replied)
+     (t 'human-turn))))
+
+(defun agile-gtd--agent-turn-kind (kind)
+  "Return KIND when it is a kind of agent turn or nil, else signal."
+  (if (memq kind (cons nil agile-gtd--agent-turn-kinds))
+      kind
+    (user-error "Unknown kind of agent turn: %S; use one of %s" kind
+                (mapconcat #'symbol-name agile-gtd--agent-turn-kinds ", "))))
+
+(defun agile-gtd--turn-marks (turn)
+  "Return what a heading in TURN carries at least one of.
+TURN is `human-turn', `agent-wait', `agent-turn' for any turn of the
+agent\\='s, or one of `agile-gtd--agent-turn-kinds'.  A mark is a tag
+name, or `claim' for `agile-gtd-agent-claim-property'.  Any other TURN
+signals: a preamble built from no marks would match the empty string,
+and org-ql would search forever."
+  (pcase turn
+    ((or 'human-turn 'replied 'answered) (list agile-gtd-human-tag))
+    ((or 'agent-wait 'delegated) (list agile-gtd-agent-tag))
+    ('withdrawn (list agile-gtd-agent-tag 'claim))
+    ('agent-turn (list agile-gtd-agent-tag agile-gtd-human-tag 'claim))
+    (_ (error "Not a turn: %S" turn))))
+
+(defun agile-gtd--turn-candidate-p (turn)
+  "Non-nil when the heading at point carries a mark of TURN.
+A heading passes this before `agile-gtd--turn' reads it.  It reads the
+heading line, and the property drawer only when the claim marks TURN."
+  (let ((marks (agile-gtd--turn-marks turn)))
+    (or (seq-intersection (org-get-tags nil t) marks)
+        (and (memq 'claim marks)
+             (org-entry-get nil agile-gtd-agent-claim-property)))))
+
+(defun agile-gtd--turn-preamble (turn query)
+  "Return the org-ql preamble of QUERY, which asks for TURN.
+Its regexp finds the headings carrying a mark of TURN among their tags,
+or the claim\\='s property line when the claim marks TURN.  It narrows
+the search and decides nothing: org-ql runs QUERY on every heading it
+finds, because a regexp cannot tell a tag from the same text in a title,
+or a property line from one outside the drawer.  Case is folded, as Org
+folds property names; the predicate tells the case of a tag apart."
+  (let* ((marks (agile-gtd--turn-marks turn))
+         (tags (seq-filter #'stringp marks)))
+    (list :regexp
+          (mapconcat
+           #'identity
+           (delq nil
+                 (list (when tags
+                         (rx-to-string
+                          `(seq bol (+ "*") (? (any " \t") (* nonl)) (any " \t")
+                                ":" (* (+ (any alnum "_@#%")) ":") (or ,@tags) ":"
+                                (* (any alnum "_@#%:")) (* (any " \t")) eol)
+                          t))
+                       (when (memq 'claim marks)
+                         (rx-to-string
+                          `(seq bol (* (any " \t"))
+                                ":" ,agile-gtd-agent-claim-property ":")
+                          t))))
+           "\\|")
+          :case-fold t
+          :query query)))
+
+(org-ql-defpred (agile-gtd-human-turn human-turn) ()
+  "Match items whose move is the human\\='s.
+Such an item carries `agile-gtd-human-tag' itself, and neither
+`agile-gtd-agent-tag' nor `agile-gtd-agent-claim-property'.  It is open
+and neither WAIT nor TODO: NEXT, PROJ, EPIC or no keyword.  See
+`agile-gtd--turn'."
+  :normalizers ((`(,predicate-names) '(agile-gtd-human-turn)))
+  :preambles (((and `(,predicate-names) form)
+               (agile-gtd--turn-preamble 'human-turn form)))
+  :body (and (agile-gtd--turn-candidate-p 'human-turn)
+             (eq (agile-gtd--turn) 'human-turn)))
+
+(org-ql-defpred (agile-gtd-agent-turn agent-turn) (&optional kind)
+  "Match items whose move is the agent\\='s, of KIND or of any kind.
+KIND is one of `agile-gtd--agent-turn-kinds', by item:
+
+  delegated  tagged `agile-gtd-agent-tag', open, unclaimed;
+  replied    tagged `agile-gtd-human-tag' alone, open, unclaimed, and
+             WAIT (the human acted) or TODO (not now);
+  answered   tagged `agile-gtd-human-tag' alone, done, unclaimed;
+  withdrawn  tagged `agile-gtd-agent-tag' and done, or carrying
+             `agile-gtd-agent-claim-property' while TODO or NEXT,
+             without the agent tag, or SOMEDAY.
+
+KIND may be a string, as org-ql\\='s string syntax passes it.  A tag
+counts on the item itself.  See `agile-gtd--turn'."
+  :normalizers ((`(,predicate-names) '(agile-gtd-agent-turn))
+                (`(,predicate-names ,(or (and (pred symbolp) kind)
+                                         `(quote ,kind)
+                                         (and (pred stringp) (app intern kind))))
+                 `(agile-gtd-agent-turn ',(agile-gtd--agent-turn-kind kind)))
+                ;; Anything else would reach org-ql as a call to a function
+                ;; that does not exist.
+                (`(,predicate-names . ,args)
+                 (agile-gtd--agent-turn-kind args)))
+  :preambles (((and `(,predicate-names) form)
+               (agile-gtd--turn-preamble 'agent-turn form))
+              ((and `(,predicate-names (quote ,kind)) form)
+               (agile-gtd--turn-preamble (or kind 'agent-turn) form)))
+  :body (let ((kind (agile-gtd--agent-turn-kind kind)))
+          (and (agile-gtd--turn-candidate-p (or kind 'agent-turn))
+               (memq (agile-gtd--turn)
+                     (if kind (list kind) agile-gtd--agent-turn-kinds))
+               t)))
+
+(org-ql-defpred (agile-gtd-agent-wait agent-wait) ()
+  "Match items the agent is working on.
+Such an item carries `agile-gtd-agent-tag' itself and
+`agile-gtd-agent-claim-property'.  It is open, neither TODO nor NEXT,
+and not SOMEDAY.  See `agile-gtd--turn'."
+  :normalizers ((`(,predicate-names) '(agile-gtd-agent-wait)))
+  :preambles (((and `(,predicate-names) form)
+               (agile-gtd--turn-preamble 'agent-wait form)))
+  :body (and (agile-gtd--turn-candidate-p 'agent-wait)
+             (eq (agile-gtd--turn) 'agent-wait)))
+
+(defun agile-gtd--loop-agenda-files ()
+  "Return the readable files the loop\\='s agenda blocks search, each once.
+These are the agenda files, then `agile-gtd-loop-files' expanded against
+`org-directory'.  A file that cannot be read is left out.  Org would
+otherwise offer to remove it from the list, and in doing so save this
+list, loop files included, as the user\\='s `org-agenda-files'."
+  (seq-filter #'file-readable-p
+              (seq-uniq (append (org-agenda-files)
+                                (mapcar #'agile-gtd--expand-org-path
+                                        agile-gtd-loop-files)))))
+
 (defun agile-gtd--item-rank ()
   "Return the virtual priority rank for the Org item at point."
   (let* ((element     (org-element-at-point))
@@ -1747,10 +1934,29 @@ They take neither area nor range."
 with no area and no range")
     (tangling . "open items under a done ancestor; asked of everything only, \
 with no area and no range")
-    (human . ,(format "open items tagged %s on the item itself, never by \
-inheritance: the human's moves, at any priority, blocked ones included; asked \
-of everything only, with no area and no range"
-                      agile-gtd-human-tag))))
+    ,@(let ((agent agile-gtd-agent-tag)
+            (human agile-gtd-human-tag)
+            (claim agile-gtd-agent-claim-property)
+            (task (string-join (agile-gtd--task-keywords) "/"))
+            (todo (agile-gtd--todo-keyword))
+            (wait (agile-gtd--wait-keyword))
+            (only "; the loop tags count on the item itself, at any \
+priority, blocked ones included; asked of everything only, with no area and \
+no range"))
+        `((human-turn . ,(format "items tagged %s with no %s tag and no %s \
+property, open, neither %s nor %s: the human's moves%s"
+                                 human agent claim wait todo only))
+          (agent-turn . ,(format "the agent's moves, of four kinds: delegated \
+\(tagged %s, open, no %s), replied (tagged %s alone, open, no %s, and %s or \
+%s), answered (tagged %s alone, done, no %s) and withdrawn (tagged %s and \
+done, or carrying %s while %s, without the %s tag, or %s, inherited too)%s; \
+org-query takes (agent-turn KIND) for one kind"
+                                 agent claim human claim wait todo human claim
+                                 agent claim task agent agile-gtd-someday-tag
+                                 only))
+          (agent-wait . ,(format "items tagged %s carrying %s, open, neither \
+%s nor %s, inherited too: the agent's work in progress%s"
+                                 agent claim task agile-gtd-someday-tag only))))))
 
 (defun agile-gtd--org-records-mcp-range-description (range)
   "Return what RANGE admits, for the catalogue."
@@ -1815,7 +2021,11 @@ commands are built from."
   (append (mapcan #'agile-gtd--org-records-mcp-area-views (agile-gtd-areas))
           (list (list 'inbox :query (agile-gtd-agenda-query-inbox))
                 (list 'tangling :query '(agile-gtd-tangling))
-                (list 'human :query (agile-gtd-agenda-query-human)))))
+                ;; The turns ask the agenda files, as every key does; the
+                ;; loop's own files are the `h' agenda command's alone.
+                (list 'human-turn :query '(human-turn))
+                (list 'agent-turn :query '(agent-turn))
+                (list 'agent-wait :query '(agent-wait)))))
 
 (defun agile-gtd--org-records-mcp-computed-fields ()
   "Return the computed fields agile-gtd gives every org-records-mcp node."
