@@ -18,8 +18,8 @@ an unknown key with the names that exist.
 
 - /area/: omitted for everything, =private=, =work=, or the tag of any project
   in =agile-gtd-projects=, with or without a =:key=.
-- /view/: =next=, =backlog= or =stuck=. =inbox=, =tangling= and =human= exist
-  once and take neither area nor range.
+- /view/: =next=, =backlog= or =stuck=. =inbox=, =tangling=, =human-turn=,
+  =agent-turn= and =agent-wait= exist once and take neither area nor range.
 - /range/: =today=, =sprint=, =upcoming=, =all= or =someday= (see [[file:view-ranges.org][View Ranges]]),
   optional on =next= and =backlog=. Without one, a key runs where the agenda
   opens: =next= at =sprint= for everything and =private=, at =upcoming= for
@@ -27,7 +27,7 @@ an unknown key with the names that exist.
 
 Every area gets thirteen keys: =next= and =backlog= at each range and without
 one, and =stuck=. With three projects registered — say =alpha=, =beta= and
-=gamma= — that is six areas and 81 keys:
+=gamma= — that is six areas and 83 keys:
 
 | Key                   | Answers                                                        |
 |-----------------------+----------------------------------------------------------------|
@@ -43,7 +43,9 @@ one, and =stuck=. With three projects registered — say =alpha=, =beta= and
 | =backlog-someday=     | the whole backlog with SOMEDAY items, ticklers and future work |
 | =work-stuck=          | work projects without a next action, for the weekly review     |
 | =tangling=            | open leftovers under finished parents                          |
-| =human=               | what waits on the human: open items tagged =human=             |
+| =human-turn=          | what waits on the human: the human's moves in the agent loop   |
+| =agent-turn=          | what waits on the agent: its moves, of every kind              |
+| =agent-wait=          | what the agent has claimed and is working on                   |
 
 * What each view holds
 
@@ -58,9 +60,10 @@ one, and =stuck=. With three projects registered — say =alpha=, =beta= and
   child, as in the Stuck Projects block.
 - =inbox=: open items carrying one of =agile-gtd-inbox-tags=.
 - =tangling=: open items under a finished ancestor.
-- =human=: open items tagged =human= on the item itself, never by
-  inheritance, at any priority, blocked ones included: the human's moves, as
-  in the My Moves command (=h=). See [[file:agent-loop.org][Working with an agent]].
+- =human-turn=, =agent-turn= and =agent-wait=: the three turns of the agent
+  loop, at any priority, blocked items included, as in the blocks of the My
+  Moves command (=h=). They search the agenda files alone, never
+  =agile-gtd-loop-files=. See [[file:agent-loop.org::*Whose turn it is][Whose turn it is]].
 
 Every result comes most urgent first, by rank. A result is an overview: each
 node carries org-records-mcp's list columns (title, state, priority, tags,

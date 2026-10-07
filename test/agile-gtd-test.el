@@ -27,6 +27,8 @@
           (agile-gtd-agent-tag "agent")
           (agile-gtd-human-tag "human")
           (agile-gtd-loop-tags nil)
+          (agile-gtd-loop-files nil)
+          (agile-gtd-agent-claim-property "AGENT_CLAIM")
           (agile-gtd--loop-tags-excluded nil)
           (org-todo-keywords nil)
           (org-todo-repeat-to-state nil)

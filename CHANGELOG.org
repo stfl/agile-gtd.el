@@ -30,16 +30,32 @@ further tags to keep on their heading the same way. A tag that leaves the
 set, by renaming or by leaving that list, is inherited again after the next
 refresh, unless you had excluded it yourself.
 
-** Hand an item to the agent, and list what waits on you
+** Hand an item to the agent
 
 ~agile-gtd-hand-over~ hands the open item at point, in an Org buffer or an
 agenda, to the agent and asks for one note. A =TODO= or =NEXT= item moves to
 =WAIT= and the note is the =WAIT= note; any other open item keeps its state
 and takes a plain =LOGBOOK= note. Then =human= comes off and =agent= goes on.
 A closed item, or a move to =WAIT= that Org refuses, is refused before
-anything changes. The new =h= agenda command, /My Moves/, and the new
-org-records-mcp view key =human= list the open items tagged =human= on the
-item itself, by rank; see [[file:docs/agent-loop.org][Working with an agent]].
+anything changes; see [[file:docs/agent-loop.org][Working with an agent]].
+
+** Whose turn it is
+
+Three new org-ql predicates name whose turn an item in the agent loop is:
+=human-turn=, =agent-turn= and =agent-wait=, also known as
+=agile-gtd-human-turn= and so on. =(agent-turn KIND)= asks for one of four
+kinds of agent turn: =delegated=, =replied=, =answered= or =withdrawn=. They
+read the item's own =agent= and =human= tags, its state, and the claim the
+agent sets while it works, the property the new
+~agile-gtd-agent-claim-property~ names (=AGENT_CLAIM= by default). Notes in
+the =LOGBOOK= move no turn. Every item carrying a loop tag or the claim is in
+exactly one turn; see [[file:docs/agent-loop.org::*Whose turn it is][Whose turn it is]].
+
+The new =h= agenda command, /My Moves/, shows the three turns as three
+blocks, by rank, and searches the files in the new ~agile-gtd-loop-files~
+(nil by default) beside the agenda files. The new org-records-mcp view keys
+=human-turn=, =agent-turn= and =agent-wait= ask the same of the agenda files
+alone.
 
 agile-gtd installs the =h= agenda command, and on refresh it replaces an
 =org-agenda-custom-commands= entry of your own under =h=, as it does for its

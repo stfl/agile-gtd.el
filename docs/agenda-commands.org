@@ -9,7 +9,7 @@ The package installs a set of agenda commands under =org-agenda-custom-commands=
 |------+--------------------------+-------------------------------------------------|
 | =i=    | Inbox                    | Unprocessed inbox items grouped by creation date |
 | =a=    | Main Agenda              | Unified daily view: all contexts, priority-grouped |
-| =h=    | My Moves                 | Open items tagged =human=: your moves, by rank   |
+| =h=    | My Moves                 | Your moves, the agent's, and its work, by rank   |
 | =A=    | Agenda Weekly            | Standard week view                               |
 | =l=    | Agenda Weekly with Log   | Week view with closed-item log                   |
 | =r=    | Review                   | Prefix for review commands                       |
@@ -46,9 +46,10 @@ days out while its rank keeps it in Next Actions until the last two.
 The backlogs (=pb=, =wb=) list projects and standalone =NEXT= / =WAIT= items,
 blocked ones included and dimmed: a backlog is what there is to plan.
 
-My Moves (=h=) lists every open item tagged =human= on the item itself, at any
-priority, blocked ones included and dimmed. It is the list of what waits on
-you; see [[file:agent-loop.org][Working with an agent]].
+My Moves (=h=) shows the three turns of the agent loop as three blocks: /Your
+move/, /Agent's move/ and /Agent working/, at any priority, blocked items
+included and dimmed. It searches the files in =agile-gtd-loop-files= beside
+the agenda files; see [[file:agent-loop.org::*The turns in the agenda][The turns in the agenda]].
 
 Which range — =today=, =sprint=, =upcoming=, =all=, or =someday= — each command's Next
 Actions and Backlog blocks open at, and how to rotate between them, is
