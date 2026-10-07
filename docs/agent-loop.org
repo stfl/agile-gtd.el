@@ -14,22 +14,36 @@ state says what an item is; two tags say who acts on it next:
 | =human= | Yours: you answer, decide or review next. |
 
 Both tags stay on the heading that carries them. A project tagged =human=
-asks you about the project, and each of its tasks stays whoever's it was:
-agile-gtd keeps both tags out of tag inheritance on every refresh (see
-[[file:org-settings.org::*Inheritance][Inheritance]]). The names are =agile-gtd-agent-tag= and
-=agile-gtd-human-tag=.
+asks you about the project, and each of its tasks stays whoever's it was.
+
+On every refresh, whether or not =agile-gtd-enable-org-settings= is on,
+agile-gtd adds both tags to =org-tags-exclude-from-inheritance=. Your own
+entries there stay, ahead of them. The names come from =agile-gtd-agent-tag=
+and =agile-gtd-human-tag=, and a tag renamed there is renamed in the
+exclusion on the next refresh. To keep a further tag on its heading the same
+way, such as one that marks an item for another system, add it to
+=agile-gtd-loop-tags=. A tag that leaves that list is inherited again after
+the next refresh, unless you had excluded it yourself before agile-gtd added
+it.
 
 * Handing an item over
 
 =agile-gtd-hand-over= hands the item at point to the agent. It works on the
 heading at point in an Org buffer and on the item at point in an agenda, so
-you can step through /My Moves/ and hand over as you go. It takes =human= off
-the item, puts =agent= on it, and asks for one note:
+you can step through /My Moves/ and hand over as you go. It sets the state,
+then takes =human= off the item and puts =agent= on it, and asks for one
+note:
 
-| The item is                                 | Its state becomes | The note is                              |
-|---------------------------------------------+-------------------+------------------------------------------|
-| =TODO= or =NEXT=                            | =WAIT=            | the note Org asks for on entering =WAIT= |
-| =WAIT=, =PROJ=, =EPIC=, done, or no keyword | unchanged         | a plain =LOGBOOK= note                   |
+| The item is                          | Its state becomes | The note is                              |
+|--------------------------------------+-------------------+------------------------------------------|
+| =TODO= or =NEXT=                     | =WAIT=            | the note Org asks for on entering =WAIT= |
+| =WAIT=, =PROJ=, =EPIC= or no keyword | unchanged         | a plain =LOGBOOK= note                   |
+| =DONE=, =IDEA= or =KILL=             | refused           | none                                     |
+
+When Org refuses the move to =WAIT=, for example in a file whose keywords
+have no =WAIT=, the command stops before the tags change, so an item is never
+left half handed over. With a region active, it still hands over the item at
+point alone.
 
 The note is what the agent needs to go on. Leave it empty when the tag says
 enough: the =LOGBOOK= still records when the item changed hands. A handed-over

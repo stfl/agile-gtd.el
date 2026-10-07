@@ -48,29 +48,50 @@
     (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human")))))
 
 (ert-deftest agile-gtd-loop-tags-follow-the-list-on-refresh ()
-  "A tag added to the list is excluded on refresh, and one dropped from it is not."
+  "An extra tag added to the list is excluded on refresh, and one dropped is not.
+The agent and human tags stay excluded whatever the list holds."
   (agile-gtd-test-with-sandbox
     (setq org-tags-exclude-from-inheritance '("crypt"))
     (agile-gtd-enable)
-    (setq agile-gtd-loop-tags '("agent" "human" "jira"))
+    (setq agile-gtd-loop-tags '("jira"))
     (agile-gtd-refresh)
     (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human" "jira")))
-    (setq agile-gtd-loop-tags '("agent"))
-    (agile-gtd-refresh)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "agent")))
     (setq agile-gtd-loop-tags nil)
     (agile-gtd-refresh)
-    (should (equal org-tags-exclude-from-inheritance '("crypt")))))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human")))))
+
+(ert-deftest agile-gtd-loop-tags-follow-a-renamed-tag ()
+  "Renaming the agent or human tag excludes the new name and frees the old one."
+  (agile-gtd-test-with-sandbox
+    (setq org-tags-exclude-from-inheritance '("crypt"))
+    (agile-gtd-enable)
+    (setq agile-gtd-agent-tag "ai"
+          agile-gtd-human-tag "me")
+    (agile-gtd-refresh)
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "ai" "me")))
+    (should (equal (agile-gtd-loop-test-tags-of "* PROJ Project :ai:me:\n** NEXT Step\n"
+                                                "NEXT Step")
+                   nil))))
 
 (ert-deftest agile-gtd-loop-tags-never-take-a-user-exclusion-away ()
   "A tag the user excluded before agile-gtd did stays excluded when the list drops it."
   (agile-gtd-test-with-sandbox
-    (setq org-tags-exclude-from-inheritance '("crypt" "human"))
+    (setq org-tags-exclude-from-inheritance '("crypt" "jira" "human"))
+    (setq agile-gtd-loop-tags '("jira"))
     (agile-gtd-enable)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "human" "agent")))
-    (setq agile-gtd-loop-tags '("agent"))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "jira" "human" "agent")))
+    (setq agile-gtd-loop-tags nil
+          agile-gtd-human-tag "me")
     (agile-gtd-refresh)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "human" "agent")))))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "jira" "human" "agent" "me")))))
+
+(ert-deftest agile-gtd-loop-tags-are-excluded-with-the-org-settings-off ()
+  "The loop depends on the exclusion, so it runs whatever `agile-gtd-enable-org-settings' says."
+  (agile-gtd-test-with-sandbox
+    (let ((agile-gtd-enable-org-settings nil))
+      (setq org-tags-exclude-from-inheritance '("crypt"))
+      (agile-gtd-enable)
+      (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human"))))))
 
 
 ;;; Handing over
@@ -194,6 +215,67 @@ The note is an ordinary LOGBOOK note."
       (should (= (length (plist-get entry :logbook)) 1))
       (should (string-match-p "\\`- State \"WAIT\" +from \"NEXT\" +\\[.*\\]\\'"
                               (car (plist-get entry :logbook)))))))
+
+(ert-deftest agile-gtd-hand-over-cancelled-note-keeps-the-hand-over ()
+  "Cancelling the note leaves the item handed over, with nothing logged."
+  (agile-gtd-loop-test-with-file "* NEXT Draft the reply :human:\n"
+    (agile-gtd-loop-test-goto buffer "NEXT")
+    (with-current-buffer buffer (agile-gtd-hand-over))
+    (org-add-log-note)
+    (with-current-buffer "*Org Note*"
+      (insert "Never mind")
+      (let ((org-note-abort t))
+        (funcall org-finish-function)))
+    (should-not (agile-gtd-loop-test-note-pending-p))
+    (let ((entry (agile-gtd-loop-test-entry buffer "WAIT")))
+      (should (equal (plist-get entry :tags) '("agent")))
+      (should-not (plist-get entry :logbook)))))
+
+(ert-deftest agile-gtd-hand-over-refuses-a-closed-item ()
+  "A done item is no one's move: handing it over changes nothing and asks nothing."
+  (dolist (state '("DONE" "IDEA" "KILL"))
+    (ert-info (state)
+      (agile-gtd-loop-test-with-file (format "* %s Old question :human:\n" state)
+        (agile-gtd-loop-test-goto buffer "")
+        (should-error (with-current-buffer buffer (agile-gtd-hand-over))
+                      :type 'user-error)
+        (should-not (agile-gtd-loop-test-note-pending-p))
+        (let ((entry (agile-gtd-loop-test-entry buffer "")))
+          (should (equal (plist-get entry :state) state))
+          (should (equal (plist-get entry :tags) '("human"))))))))
+
+(ert-deftest agile-gtd-hand-over-changes-nothing-when-wait-is-refused ()
+  "When the item cannot move to WAIT, its tags stay as they were."
+  (agile-gtd-loop-test-with-file
+      "#+TODO: TODO NEXT | DONE\n* NEXT Draft the reply :human:\n"
+    (agile-gtd-loop-test-goto buffer "NEXT")
+    (with-current-buffer buffer
+      (org-mode)
+      (should-error (agile-gtd-hand-over) :type 'user-error))
+    (should-not (agile-gtd-loop-test-note-pending-p))
+    (let ((entry (agile-gtd-loop-test-entry buffer "NEXT")))
+      (should (equal (plist-get entry :state) "NEXT"))
+      (should (equal (plist-get entry :tags) '("human"))))))
+
+(ert-deftest agile-gtd-hand-over-takes-one-item-whatever-the-region ()
+  "An active region does not spread the state change over the headings in it."
+  (agile-gtd-loop-test-with-file
+      "* NEXT First reply :human:\n* NEXT Second reply :human:\n"
+    (with-current-buffer buffer
+      (let ((org-loop-over-headlines-in-active-region t)
+            (transient-mark-mode t))
+        (goto-char (point-max))
+        (set-mark (point))
+        (goto-char (point-min))
+        (activate-mark)
+        (should (region-active-p))
+        (agile-gtd-hand-over)
+        (deactivate-mark)))
+    (agile-gtd-loop-test-write-note "Over to you")
+    (let ((first (agile-gtd-loop-test-entry buffer "WAIT First"))
+          (second (agile-gtd-loop-test-entry buffer "NEXT Second")))
+      (should (equal (plist-get first :tags) '("agent")))
+      (should (equal (plist-get second :tags) '("human"))))))
 
 (ert-deftest agile-gtd-hand-over-works-on-the-agenda-item-at-point ()
   "From an agenda line, the item in its Org file is handed over the same way."

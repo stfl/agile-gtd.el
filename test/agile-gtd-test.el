@@ -24,7 +24,9 @@
           (org-super-agenda-header-separator nil)
           (org-tag-alist '(("@home" . ?h)))
           (org-tags-exclude-from-inheritance nil)
-          (agile-gtd-loop-tags '("agent" "human"))
+          (agile-gtd-agent-tag "agent")
+          (agile-gtd-human-tag "human")
+          (agile-gtd-loop-tags nil)
           (agile-gtd--loop-tags-excluded nil)
           (org-todo-keywords nil)
           (org-todo-repeat-to-state nil)
@@ -99,6 +101,7 @@
        (ignore-errors (org-super-agenda-mode -1))
        (advice-remove 'org-store-link #'agile-gtd--org-store-link-ids-a)
        (advice-remove 'org-store-link #'agile-gtd--org-store-link-kill-ring-a)
+       (advice-remove 'org-edna-action/todo! #'agile-gtd--org-edna-todo-keep-log-a)
        (delete-directory tmpdir t))))
 
 (ert-deftest agile-gtd-enable-applies-core-settings ()
@@ -238,8 +241,7 @@ options' Customize setters, which a plain assignment does not run."
            (variables '(org-agenda-dim-blocked-tasks org-log-into-drawer
                         org-log-done org-log-refile org-archive-location org-modules
                         org-habit-preceding-days org-agenda-span
-                        org-deadline-warning-days org-use-property-inheritance
-                        org-tags-exclude-from-inheritance))
+                        org-deadline-warning-days org-use-property-inheritance))
            (before (mapcar #'symbol-value variables)))
       (agile-gtd-enable)
       (should-not org-edna-mode)

@@ -24,12 +24,12 @@ eask exec emacs -batch -Q -L . \
 
 ## Architecture
 
-This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion test files under `test/`. It depends on org-records-mcp, which is not on MELPA (MELPA's `org-mcp` is a different package with no views); Eask fetches `stfl/org-records-mcp` from GitHub's `main` branch.
+This is a single-file Emacs Lisp package (`agile-gtd.el`) with ten companion test files under `test/`. It depends on org-records-mcp, which is not on MELPA (MELPA's `org-mcp` is a different package with no views); Eask fetches `stfl/org-records-mcp` from GitHub's `main` branch.
 
 ### Main entry points
 
 - `agile-gtd-enable` — call once after customising variables; delegates to `agile-gtd-refresh`
-- `agile-gtd-refresh` — validates config, then applies all derived settings (priorities, keywords, tags, agenda files, refile targets, capture templates, agenda commands, org-records-mcp views)
+- `agile-gtd-refresh` — validates config, then applies all derived settings (Org settings, loop-tag inheritance, priorities, keywords, tags, agenda files, refile targets, capture templates, agenda commands, org-records-mcp views)
 
 ### Key subsystems
 
@@ -87,7 +87,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 **Org settings** (`agile-gtd--apply-org-settings`, behind `agile-gtd-enable-org-settings`, default t)
 - Runs first in `agile-gtd-refresh`: turns on `org-edna-mode`, adds `org-habit` to `org-modules`, removes Org's own enforce blockers from `org-blocker-hook`, and `set-default`s every pair in `agile-gtd--org-settings`
 - `set-default`, not `setq`: a refresh run from an Org buffer whose startup options made a variable local must not change that buffer alone
-- `agile-gtd--apply-loop-tags` merges `agile-gtd-loop-tags` into `org-tags-exclude-from-inheritance` rather than setting it: it takes out only what the previous refresh added (`agile-gtd--loop-tags-excluded`, as the org-records-mcp view names are tracked) and never records a tag the user had excluded first
+- Next to `org-edna-mode` it adds `agile-gtd--org-edna-todo-keep-log-a` around `org-edna-action/todo!` (removed when the flag is off). A TRIGGER's `org-todo` runs inside the change that fired it, and Org keeps one pending log entry: without the advice `NEXT(n!)` on the triggered sibling replaces the pending `DONE(d@)` note, so the prompt never comes and org-records-mcp writes the closing note on the sibling. The advice binds fresh `org-log-note-*` state (fresh markers: `org-add-log-setup` moves them), writes the triggered entry at once without prose (`agile-gtd--store-log-note-now`), and leaves `post-command-hook` alone when `org-add-log-note` was on it already. `agile-gtd-chain-test.el` covers both paths
 - `org-archive-location` derives from `org-directory` through `agile-gtd--expand-org-path`; values that follow from agile-gtd's own configuration are derived, never hard-coded
 - Blocked tasks are hidden globally (`org-agenda-dim-blocked-tasks` `invisible`); the area commands (`agile-gtd--area-agenda-command`) and the `pb`/`wb` backlogs dim them with a command-level setting, because `org-agenda-finalize` sees only command settings, never a block's
 - A setting added here goes into both test sandboxes and into [docs/org-settings.org](docs/org-settings.org), with its reason
@@ -100,8 +100,8 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 - [docs/storing-links.org](docs/storing-links.org) describes the behaviour and the org-records-mcp contract for users
 
 **Agent/human loop** (`agile-gtd-agent-tag`, `agile-gtd-human-tag`, `agile-gtd-loop-tags`)
-- The two tags say whose move an item is; states stay the human's. `agile-gtd-loop-tags` is kept out of inheritance by `agile-gtd--apply-loop-tags` (under Org settings)
-- `agile-gtd-hand-over` swaps the local `human` tag for `agent`, then either `org-todo "WAIT"` (TODO/NEXT, `agile-gtd--hand-over-waits-p`) or `org-add-note`; in an agenda the `org-agenda-*` equivalents, so the lines update. The note is Org's own deferred prompt (`post-command-hook`), and exactly one: a second `org-add-log-setup` would overwrite the WAIT note. WAIT stays WAIT with a plain note, because `org-todo` logs a WAIT-to-WAIT change. There is no hand-back command: the agent hands back through org-records-mcp
+- The two tags say whose move an item is; states stay the human's. `agile-gtd--apply-loop-tags` runs on every refresh in its own step, whatever `agile-gtd-enable-org-settings` says: it merges the two tag defcustoms' values plus `agile-gtd-loop-tags` (extra tags only, default nil) into `org-tags-exclude-from-inheritance` rather than setting it, takes out only what the previous refresh added (`agile-gtd--loop-tags-excluded`, as the org-records-mcp view names are tracked), and never records a tag the user had excluded first. Never list the agent or human name as a literal: a rename must move the exclusion with it
+- `agile-gtd-hand-over` refuses a closed item, changes the state first — `org-todo` WAIT for an open task (`agile-gtd--hand-over-waits-p`, derived from `agile-gtd--wait-keyword` and `agile-gtd--container-keywords`), read back because a Lisp `org-todo` reports a block only in the echo area — or `org-add-note`, and only then swaps the local `human` tag for `agent`, so a refused change leaves nothing half done. Both region-loop variables are bound nil. In an agenda it uses the `org-agenda-*` equivalents, so the lines update. The note is Org's own deferred prompt (`post-command-hook`), and exactly one: a second `org-add-log-setup` would overwrite the WAIT note. WAIT stays WAIT with a plain note, because `org-todo` logs a WAIT-to-WAIT change. There is no hand-back command: the agent hands back through org-records-mcp
 - The `h` command dims blocked items (command-level `org-agenda-dim-blocked-tasks`, as the backlogs do). WAIT `agent` items stay in the next-actions queries: no existing filter reads the loop tags
 
 **org-edna integration**

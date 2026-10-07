@@ -19,6 +19,9 @@ configuring:
 - the Org options the workflow depends on: org-edna-mode, logging into the
   =LOGBOOK=, the archive location, org-habit, agenda behaviour and
   inheritance, unless =agile-gtd-enable-org-settings= is nil
+- =org-tags-exclude-from-inheritance=: the =agent= and =human= tags, and any
+  in =agile-gtd-loop-tags=, added beside your own entries on every refresh;
+  see [[file:agent-loop.org::*Whose move it is][Whose move it is]]
 - =org-store-link=: interactive calls link a heading by =:ID:= or
   =:CUSTOM_ID:= depending on where its file lives, unless
   =agile-gtd-enable-link-ids= is nil, and copy the link to the kill ring,

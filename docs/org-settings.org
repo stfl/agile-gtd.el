@@ -54,6 +54,12 @@ agile-gtd also removes Org's own blockers from =org-blocker-hook=, which
 Org installs whenever the two enforce options are switched on through
 Customize.
 
+A chain's =TRIGGER= changes the next step's state inside the change that
+closed the step before it, and Org keeps one log entry pending at a time.
+With this step on, the state change org-edna's =todo!= action makes is
+logged at once, so closing a step still asks for its own note and records
+it on that step; see [[file:task-dependencies.org][Task dependencies]].
+
 * Logging
 
 State changes and notes are the task's history. The weekly review reads it
@@ -122,17 +128,14 @@ configuration.
 
 * Inheritance
 
-| Setting                             | Value                    | Why                                                                                                                                                                                                   |
-|-------------------------------------+--------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| =org-use-tag-inheritance=           | =t=                      | Area tags (=#work=), project and client tags, and =SOMEDAY= arrive through =#+filetags:= and parent headings. The area filters, the project views and the startup tag check all match inherited tags. |
-| =org-use-property-inheritance=      | =t=                      | A property set on a project, or on a file with =#+PROPERTY:=, holds for the tasks beneath it wherever a query asks for inherited values.                                                              |
-| =org-tags-exclude-from-inheritance= | adds =agent= and =human= | These tags say whose move an item is. A project tagged =human= is yours to answer, not each of its tasks, so the tag stays on the heading carrying it.                                                |
+| Setting                        | Value | Why                                                                                                                                                                                                   |
+|--------------------------------+-------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =org-use-tag-inheritance=      | =t=   | Area tags (=#work=), project and client tags, and =SOMEDAY= arrive through =#+filetags:= and parent headings. The area filters, the project views and the startup tag check all match inherited tags. |
+| =org-use-property-inheritance= | =t=   | A property set on a project, or on a file with =#+PROPERTY:=, holds for the tasks beneath it wherever a query asks for inherited values.                                                              |
 
 Org's default for =org-use-tag-inheritance= is already =t=; agile-gtd states
 it because the workflow breaks without it.
 
-The tags agile-gtd adds to =org-tags-exclude-from-inheritance= are those in
-=agile-gtd-loop-tags=. Your own entries in that variable stay, ahead of the
-loop tags. A tag you drop from =agile-gtd-loop-tags= is inherited again after
-the next refresh, unless you had excluded it yourself before agile-gtd added
-it. Add a tag to =agile-gtd-loop-tags= to keep it on its heading the same way.
+The =agent= and =human= tags are kept out of inheritance on every refresh,
+whether or not this step is on, through =org-tags-exclude-from-inheritance=;
+see [[file:agent-loop.org::*Whose move it is][Whose move it is]].

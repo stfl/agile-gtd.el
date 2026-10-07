@@ -28,4 +28,4 @@
 ;; Stale bytecode is loaded in preference to newer source, so a test run can
 ;; silently exercise the last compile rather than the working tree.  The sweep
 ;; leaves .eask alone: that is the dependencies' own bytecode, not ours.
-(script "test" "find . -maxdepth 2 -name '*.elc' -not -path './.eask/*' -delete && eask test ert test/agile-gtd-test.el test/agile-gtd-rank-test.el test/agile-gtd-org-ql-predicates-test.el test/agile-gtd-agenda-test.el test/agile-gtd-range-test.el test/agile-gtd-startup-test.el test/agile-gtd-org-records-mcp-test.el test/agile-gtd-links-test.el test/agile-gtd-loop-test.el")
+(script "test" "find . -maxdepth 2 -name '*.elc' -not -path './.eask/*' -delete && eask test ert test/agile-gtd-test.el test/agile-gtd-rank-test.el test/agile-gtd-org-ql-predicates-test.el test/agile-gtd-agenda-test.el test/agile-gtd-range-test.el test/agile-gtd-startup-test.el test/agile-gtd-org-records-mcp-test.el test/agile-gtd-links-test.el test/agile-gtd-loop-test.el test/agile-gtd-chain-test.el")

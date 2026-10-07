@@ -96,8 +96,8 @@ When files use =#+filetags=, those tags classify every heading in the file.
 
 =agent= and =human= are the exception: they stay on the heading that carries
 them and never pass to its children, so tagging a project hands over the
-project and not each of its tasks. The tags that behave this way are listed in
-=agile-gtd-loop-tags=; see [[file:org-settings.org::*Inheritance][Inheritance]]. Handing items to an agent and
+project and not each of its tasks. Further tags can be kept on their heading
+the same way; see [[file:agent-loop.org::*Whose move it is][Whose move it is]]. Handing items to an agent and
 finding what waits on you is described in [[file:agent-loop.org][Working with an agent]].
 
 * Deferred work

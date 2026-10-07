@@ -26,7 +26,9 @@
           (org-super-agenda-header-separator nil)
           (org-tag-alist '(("@home" . ?h)))
           (org-tags-exclude-from-inheritance nil)
-          (agile-gtd-loop-tags '("agent" "human"))
+          (agile-gtd-agent-tag "agent")
+          (agile-gtd-human-tag "human")
+          (agile-gtd-loop-tags nil)
           (agile-gtd--loop-tags-excluded nil)
           (org-use-tag-inheritance t)
           (org-todo-keywords nil)
@@ -101,6 +103,7 @@
        (ignore-errors (org-super-agenda-mode -1))
        (advice-remove 'org-store-link #'agile-gtd--org-store-link-ids-a)
        (advice-remove 'org-store-link #'agile-gtd--org-store-link-kill-ring-a)
+       (advice-remove 'org-edna-action/todo! #'agile-gtd--org-edna-todo-keep-log-a)
        (delete-directory tmpdir t))))
 
 (defconst agile-gtd-org-ql-test-data
