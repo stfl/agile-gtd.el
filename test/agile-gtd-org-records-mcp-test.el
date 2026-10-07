@@ -62,10 +62,10 @@
      ;; Tagged for the human on the item itself.  The TODO is deferred and
      ;; the done item answered, both the agent's move; the project is the
      ;; human's.  The step does not inherit the tag.
-     "* TODO [#B] Private question for the human :human:\n\n"
-     "* PROJ [#F] Private project for the human :human:\n"
+     "* TODO [#B] Private question for the human :%human:\n\n"
+     "* PROJ [#F] Private project for the human :%human:\n"
      "** NEXT Private step under the human's project\n\n"
-     "* DONE Private answered question :human:\n\n"
+     "* DONE Private answered question :%human:\n\n"
      "* NEXT [#A] Private someday :SOMEDAY:\n\n"
      "* NEXT [#B] Work action :#work:\n\n"
      "* NEXT Work default action :#work:\n\n"
@@ -328,14 +328,14 @@ project's step does not inherit a loop tag."
     (let ((loop (expand-file-name "loop.org" org-directory))
           (outside (expand-file-name "agentic.org" org-directory)))
       (with-temp-file loop
-        (insert "* NEXT [#B] Loop question for the human :human:\n\n"
-                "* NEXT [#A] Loop task for the agent :agent:\n\n"
-                "* WAIT [#C] Loop work the agent holds :agent:\n"
+        (insert "* NEXT [#B] Loop question for the human :%human:\n\n"
+                "* NEXT [#A] Loop task for the agent :%agent:\n\n"
+                "* WAIT [#C] Loop work the agent holds :%agent:\n"
                 ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n"))
       (with-temp-file outside
-        (insert "* NEXT [#A] Outside question for the human :human:\n\n"
-                "* NEXT [#A] Outside task for the agent :agent:\n\n"
-                "* WAIT [#A] Outside work the agent holds :agent:\n"
+        (insert "* NEXT [#A] Outside question for the human :%human:\n\n"
+                "* NEXT [#A] Outside task for the agent :%agent:\n\n"
+                "* WAIT [#A] Outside work the agent holds :%agent:\n"
                 ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n"))
       (setq org-agenda-files (append org-agenda-files (list loop))
             agile-gtd-loop-files (list outside))
@@ -627,10 +627,10 @@ adds are the names `computed' lists."
         (ert-info (word)
           (should (string-match-p (regexp-quote word) description))))
       (ert-info ("the turns name the tags and the claim property")
-        (should (string-match-p "human-turn - items tagged human" description))
+        (should (string-match-p "human-turn - items tagged %human" description))
         (dolist (kind '("delegated" "replied" "answered" "withdrawn"))
           (should (string-match-p (regexp-quote kind) description)))
-        (should (string-match-p "agent-wait - items tagged agent carrying AGENT_CLAIM"
+        (should (string-match-p "agent-wait - items tagged %agent carrying AGENT_CLAIM"
                                 description)))
       (ert-info ("the per-area defaults")
         (should (string-match-p "sprint for everything and private" description))

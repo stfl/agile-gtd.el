@@ -145,13 +145,13 @@ TODO and IDEA record nothing."
   :type 'string
   :group 'agile-gtd)
 
-(defcustom agile-gtd-agent-tag "agent"
+(defcustom agile-gtd-agent-tag "%agent"
   "Tag on an item whose next move is the agent\\='s.
 `agile-gtd-hand-over' puts it on the item it hands over."
   :type 'string
   :group 'agile-gtd)
 
-(defcustom agile-gtd-human-tag "human"
+(defcustom agile-gtd-human-tag "%human"
   "Tag on an item whose next move is the human\\='s.
 Read off the item itself, with its state and the agent\\='s claim, it
 tells whose turn the item is; see `human-turn' and `agent-turn'.

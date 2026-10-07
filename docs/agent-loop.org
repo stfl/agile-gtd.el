@@ -10,10 +10,10 @@ state says what an item is; two tags say who acts on it next:
 
 | Tag      | Whose move                                |
 |----------+-------------------------------------------|
-| =agent= | The agent's: it picks the item up next.   |
-| =human= | Yours: you answer, decide or review next. |
+| =%agent= | The agent's: it picks the item up next.   |
+| =%human= | Yours: you answer, decide or review next. |
 
-Both tags stay on the heading that carries them. A project tagged =human=
+Both tags stay on the heading that carries them. A project tagged =%human=
 asks you about the project, and each of its tasks stays whoever's it was.
 
 On every refresh, whether or not =agile-gtd-enable-org-settings= is on,
@@ -31,7 +31,7 @@ it.
 =agile-gtd-hand-over= hands the item at point to the agent. It works on the
 heading at point in an Org buffer and on the item at point in an agenda, so
 you can step through /My Moves/ and hand over as you go. It sets the state,
-then takes =human= off the item and puts =agent= on it, and asks for one
+then takes =%human= off the item and puts =%agent= on it, and asks for one
 note:
 
 | The item is                          | Its state becomes | The note is                              |
@@ -50,7 +50,7 @@ enough: the =LOGBOOK= still records when the item changed hands. A handed-over
 action reads like this:
 
 #+begin_example
-,* WAIT [#B] Draft the reply to the vendor                              :agent:
+,* WAIT [#B] Draft the reply to the vendor                             :%agent:
 :LOGBOOK:
 - State "WAIT"       from "NEXT"       [2026-10-07 Wed 17:40] \\
   Use the figures from the last quarter.
@@ -62,40 +62,40 @@ Cancelling it there keeps the hand-over and logs nothing. The package
 installs no key for the command; bind it in =org-mode-map= and
 =org-agenda-mode-map= if you use it often.
 
-Handing an item back is the agent's move: it swaps =agent= for =human=
+Handing an item back is the agent's move: it swaps =%agent= for =%human=
 through org-records-mcp and releases its claim.
 
 * Whose turn it is
 
 The tags say who acts next. With the state and the agent's claim they put
 every item in the loop in exactly one of three turns. An item is in the loop
-when it carries =agent= or =human= itself, or the claim. Each turn is an
+when it carries =%agent= or =%human= itself, or the claim. Each turn is an
 org-ql predicate:
 
 | Turn                 | Predicate      | The item                                                                          |
 |----------------------+----------------+-----------------------------------------------------------------------------------|
-| Your move            | =(human-turn)= | tagged =human= and not =agent=, unclaimed, =NEXT=, =PROJ=, =EPIC= or no keyword |
+| Your move            | =(human-turn)= | tagged =%human= and not =%agent=, unclaimed, =NEXT=, =PROJ=, =EPIC= or no keyword |
 | The agent's move     | =(agent-turn)= | one of the four kinds below                                                       |
-| The agent is working | =(agent-wait)= | tagged =agent= and claimed, open, neither =TODO=, =NEXT= nor =SOMEDAY=           |
+| The agent is working | =(agent-wait)= | tagged =%agent= and claimed, open, neither =TODO=, =NEXT= nor =SOMEDAY=           |
 
 The agent's move comes in four kinds, and =(agent-turn KIND)= asks for one:
 
 | Kind        | The item                                                              | It means                                                                                    |
 |-------------+-----------------------------------------------------------------------+---------------------------------------------------------------------------------------------|
-| =delegated= | tagged =agent=, open, unclaimed, in any state                        | the agent picks it up                                                                       |
-| =replied=   | tagged =human= and not =agent=, unclaimed, =WAIT= or =TODO=         | =WAIT=: you acted, over to the agent; =TODO=: not now, the agent takes the =human= tag off |
-| =answered=  | tagged =human= and not =agent=, unclaimed, =DONE=, =KILL= or =IDEA= | you decided; the agent records it and takes the tag off                                     |
-| =withdrawn= | tagged =agent= and closed, or claimed as described below             | you took the work back; the agent stops and releases it                                     |
+| =delegated= | tagged =%agent=, open, unclaimed, in any state                        | the agent picks it up                                                                       |
+| =replied=   | tagged =%human= and not =%agent=, unclaimed, =WAIT= or =TODO=         | =WAIT=: you acted, over to the agent; =TODO=: not now, the agent takes the =%human= tag off |
+| =answered=  | tagged =%human= and not =%agent=, unclaimed, =DONE=, =KILL= or =IDEA= | you decided; the agent records it and takes the tag off                                     |
+| =withdrawn= | tagged =%agent= and closed, or claimed as described below             | you took the work back; the agent stops and releases it                                     |
 
 A claimed item is withdrawn when it is =TODO= or =NEXT=, when it no longer
-carries =agent=, or when it is =SOMEDAY=, by its own tag or a parent's. Take
+carries =%agent=, or when it is =SOMEDAY=, by its own tag or a parent's. Take
 work back from the agent in whichever way fits: close the item, set it back to
-=TODO= or =NEXT=, take the =agent= tag off, or park it. The agent then stops,
+=TODO= or =NEXT=, take the =%agent= tag off, or park it. The agent then stops,
 releases the claim, notes what it undid and takes its tag off.
 
-An item carrying both tags, where =agent= went on and =human= stayed, is the
+An item carrying both tags, where =%agent= went on and =%human= stayed, is the
 agent's to pick up: =delegated=. A tag counts on the item itself, never by
-inheritance, and a title that merely contains =:agent:= tags nothing.
+inheritance, and a title that merely contains =:%agent:= tags nothing.
 
 Notes in the =LOGBOOK= move no turn. Only the state, the tags and the claim
 do: answering the agent takes a state change or a tag, a note alone is not
@@ -109,7 +109,7 @@ to choose; the property being there is what counts. The claim tells work the
 agent is doing from work waiting for it:
 
 #+begin_example
-,* WAIT [#B] Draft the reply to the vendor                              :agent:
+,* WAIT [#B] Draft the reply to the vendor                             :%agent:
 :PROPERTIES:
 :AGENT_CLAIM: 2026-10-07 17:45
 :END:

@@ -87,14 +87,14 @@ The workflow uses tags as control signals rather than decoration.
 | #work     | Work item                                         |
 | #personal | Personal item                                     |
 | @context  | GTD context such as a place, person, or tool      |
-| agent     | The agent's move: an AI agent works on it next    |
-| human     | The human's move: you answer or decide next       |
+| %agent    | The agent's move: an AI agent works on it next    |
+| %human    | The human's move: you answer or decide next       |
 
 Domain- or client-specific tags can be layered on top via =agile-gtd-projects=
 (see [[file:projects.org][Projects]]).
 When files use =#+filetags=, those tags classify every heading in the file.
 
-=agent= and =human= are the exception: they stay on the heading that carries
+=%agent= and =%human= are the exception: they stay on the heading that carries
 them and never pass to its children, so tagging a project hands over the
 project and not each of its tasks. Further tags can be kept on their heading
 the same way; see [[file:agent-loop.org::*Whose move it is][Whose move it is]]. Handing items to an agent and

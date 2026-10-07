@@ -30,13 +30,18 @@
     (re-search-forward (concat "^\\*+ " (regexp-quote heading)))
     (org-get-tags)))
 
+(ert-deftest agile-gtd-loop-tags-carry-a-percent-prefix-by-default ()
+  "The agent and human tags are `%agent' and `%human' unless configured."
+  (should (equal (eval (car (get 'agile-gtd-agent-tag 'standard-value)) t) "%agent"))
+  (should (equal (eval (car (get 'agile-gtd-human-tag 'standard-value)) t) "%human")))
+
 (ert-deftest agile-gtd-loop-tags-stay-on-their-heading ()
   "A loop tag on a project does not hand its children over; other tags still pass."
   (agile-gtd-test-with-sandbox
     (agile-gtd-enable)
-    (let ((text "* PROJ Project :human:agent:#work:\n** NEXT Step\n"))
+    (let ((text "* PROJ Project :%human:%agent:#work:\n** NEXT Step\n"))
       (should (equal (agile-gtd-loop-test-tags-of text "PROJ Project")
-                     '("human" "agent" "#work")))
+                     '("%human" "%agent" "#work")))
       (should (equal (agile-gtd-loop-test-tags-of text "NEXT Step") '("#work"))))))
 
 (ert-deftest agile-gtd-loop-tags-keep-the-user-s-own-exclusions ()
@@ -44,9 +49,9 @@
   (agile-gtd-test-with-sandbox
     (setq org-tags-exclude-from-inheritance '("crypt"))
     (agile-gtd-enable)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human")))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "%agent" "%human")))
     (agile-gtd-refresh)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human")))))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "%agent" "%human")))))
 
 (ert-deftest agile-gtd-loop-tags-follow-the-list-on-refresh ()
   "An extra tag added to the list is excluded on refresh, and one dropped is not.
@@ -56,10 +61,10 @@ The agent and human tags stay excluded whatever the list holds."
     (agile-gtd-enable)
     (setq agile-gtd-loop-tags '("jira"))
     (agile-gtd-refresh)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human" "jira")))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "%agent" "%human" "jira")))
     (setq agile-gtd-loop-tags nil)
     (agile-gtd-refresh)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human")))))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "%agent" "%human")))))
 
 (ert-deftest agile-gtd-loop-tags-follow-a-renamed-tag ()
   "Renaming the agent or human tag excludes the new name and frees the old one."
@@ -77,14 +82,14 @@ The agent and human tags stay excluded whatever the list holds."
 (ert-deftest agile-gtd-loop-tags-never-take-a-user-exclusion-away ()
   "A tag the user excluded before agile-gtd did stays excluded when the list drops it."
   (agile-gtd-test-with-sandbox
-    (setq org-tags-exclude-from-inheritance '("crypt" "jira" "human"))
+    (setq org-tags-exclude-from-inheritance '("crypt" "jira" "%human"))
     (setq agile-gtd-loop-tags '("jira"))
     (agile-gtd-enable)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "jira" "human" "agent")))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "jira" "%human" "%agent")))
     (setq agile-gtd-loop-tags nil
           agile-gtd-human-tag "me")
     (agile-gtd-refresh)
-    (should (equal org-tags-exclude-from-inheritance '("crypt" "jira" "human" "agent" "me")))))
+    (should (equal org-tags-exclude-from-inheritance '("crypt" "jira" "%human" "%agent" "me")))))
 
 (ert-deftest agile-gtd-loop-tags-are-excluded-with-the-org-settings-off ()
   "The loop depends on the exclusion, so it runs whatever `agile-gtd-enable-org-settings' says."
@@ -92,7 +97,7 @@ The agent and human tags stay excluded whatever the list holds."
     (let ((agile-gtd-enable-org-settings nil))
       (setq org-tags-exclude-from-inheritance '("crypt"))
       (agile-gtd-enable)
-      (should (equal org-tags-exclude-from-inheritance '("crypt" "agent" "human"))))))
+      (should (equal org-tags-exclude-from-inheritance '("crypt" "%agent" "%human"))))))
 
 
 ;;; Handing over
@@ -168,7 +173,7 @@ The human tag leaves, the agent tag arrives, and other tags stay."
   (dolist (state '("TODO" "NEXT"))
     (ert-info (state)
       (agile-gtd-loop-test-with-file
-          (format "* %s [#A] Draft the reply :human:#work:\n" state)
+          (format "* %s [#A] Draft the reply :%%human:#work:\n" state)
         (agile-gtd-loop-test-goto buffer "")
         (with-current-buffer buffer (agile-gtd-hand-over))
         (should (equal (agile-gtd-loop-test-write-note "Over to you")
@@ -178,7 +183,7 @@ The human tag leaves, the agent tag arrives, and other tags stay."
           (should-not (agile-gtd-loop-test-note-pending-p)))
         (let ((entry (agile-gtd-loop-test-entry buffer "WAIT")))
           (should (equal (plist-get entry :state) "WAIT"))
-          (should (equal (plist-get entry :tags) '("#work" "agent")))
+          (should (equal (plist-get entry :tags) '("#work" "%agent")))
           (should (= (length (plist-get entry :logbook)) 2))
           (should (string-match-p
                    (format "\\`- State \"WAIT\" +from \"%s\" +\\[.*\\] \\\\\\\\\\'" state)
@@ -191,7 +196,7 @@ The note is an ordinary LOGBOOK note."
   (dolist (state '("PROJ" "EPIC" "WAIT" nil))
     (ert-info ((or state "no keyword"))
       (agile-gtd-loop-test-with-file
-          (format "* %sQuestion for the agent :human:\n" (if state (concat state " ") ""))
+          (format "* %sQuestion for the agent :%%human:\n" (if state (concat state " ") ""))
         (agile-gtd-loop-test-goto buffer "")
         (with-current-buffer buffer (agile-gtd-hand-over))
         (should (equal (agile-gtd-loop-test-write-note "Please research")
@@ -199,7 +204,7 @@ The note is an ordinary LOGBOOK note."
         (should-not (agile-gtd-loop-test-note-pending-p))
         (let ((entry (agile-gtd-loop-test-entry buffer "")))
           (should (equal (plist-get entry :state) state))
-          (should (equal (plist-get entry :tags) '("agent")))
+          (should (equal (plist-get entry :tags) '("%agent")))
           (should (= (length (plist-get entry :logbook)) 2))
           (should (string-match-p "\\`- Note taken on \\[.*\\] \\\\\\\\\\'"
                                   (car (plist-get entry :logbook))))
@@ -207,19 +212,19 @@ The note is an ordinary LOGBOOK note."
 
 (ert-deftest agile-gtd-hand-over-takes-an-empty-note ()
   "An empty note still hands the item over: the tag and the dated state change."
-  (agile-gtd-loop-test-with-file "* NEXT Draft the reply :human:\n"
+  (agile-gtd-loop-test-with-file "* NEXT Draft the reply :%human:\n"
     (agile-gtd-loop-test-goto buffer "NEXT")
     (with-current-buffer buffer (agile-gtd-hand-over))
     (agile-gtd-loop-test-write-note "")
     (let ((entry (agile-gtd-loop-test-entry buffer "WAIT")))
-      (should (equal (plist-get entry :tags) '("agent")))
+      (should (equal (plist-get entry :tags) '("%agent")))
       (should (= (length (plist-get entry :logbook)) 1))
       (should (string-match-p "\\`- State \"WAIT\" +from \"NEXT\" +\\[.*\\]\\'"
                               (car (plist-get entry :logbook)))))))
 
 (ert-deftest agile-gtd-hand-over-cancelled-note-keeps-the-hand-over ()
   "Cancelling the note leaves the item handed over, with nothing logged."
-  (agile-gtd-loop-test-with-file "* NEXT Draft the reply :human:\n"
+  (agile-gtd-loop-test-with-file "* NEXT Draft the reply :%human:\n"
     (agile-gtd-loop-test-goto buffer "NEXT")
     (with-current-buffer buffer (agile-gtd-hand-over))
     (org-add-log-note)
@@ -229,26 +234,26 @@ The note is an ordinary LOGBOOK note."
         (funcall org-finish-function)))
     (should-not (agile-gtd-loop-test-note-pending-p))
     (let ((entry (agile-gtd-loop-test-entry buffer "WAIT")))
-      (should (equal (plist-get entry :tags) '("agent")))
+      (should (equal (plist-get entry :tags) '("%agent")))
       (should-not (plist-get entry :logbook)))))
 
 (ert-deftest agile-gtd-hand-over-refuses-a-closed-item ()
   "A done item is no one's move: handing it over changes nothing and asks nothing."
   (dolist (state '("DONE" "IDEA" "KILL"))
     (ert-info (state)
-      (agile-gtd-loop-test-with-file (format "* %s Old question :human:\n" state)
+      (agile-gtd-loop-test-with-file (format "* %s Old question :%%human:\n" state)
         (agile-gtd-loop-test-goto buffer "")
         (should-error (with-current-buffer buffer (agile-gtd-hand-over))
                       :type 'user-error)
         (should-not (agile-gtd-loop-test-note-pending-p))
         (let ((entry (agile-gtd-loop-test-entry buffer "")))
           (should (equal (plist-get entry :state) state))
-          (should (equal (plist-get entry :tags) '("human"))))))))
+          (should (equal (plist-get entry :tags) '("%human"))))))))
 
 (ert-deftest agile-gtd-hand-over-changes-nothing-when-wait-is-refused ()
   "When the item cannot move to WAIT, its tags stay as they were."
   (agile-gtd-loop-test-with-file
-      "#+TODO: TODO NEXT | DONE\n* NEXT Draft the reply :human:\n"
+      "#+TODO: TODO NEXT | DONE\n* NEXT Draft the reply :%human:\n"
     (agile-gtd-loop-test-goto buffer "NEXT")
     (with-current-buffer buffer
       (org-mode)
@@ -256,12 +261,12 @@ The note is an ordinary LOGBOOK note."
     (should-not (agile-gtd-loop-test-note-pending-p))
     (let ((entry (agile-gtd-loop-test-entry buffer "NEXT")))
       (should (equal (plist-get entry :state) "NEXT"))
-      (should (equal (plist-get entry :tags) '("human"))))))
+      (should (equal (plist-get entry :tags) '("%human"))))))
 
 (ert-deftest agile-gtd-hand-over-takes-one-item-whatever-the-region ()
   "An active region does not spread the state change over the headings in it."
   (agile-gtd-loop-test-with-file
-      "* NEXT First reply :human:\n* NEXT Second reply :human:\n"
+      "* NEXT First reply :%human:\n* NEXT Second reply :%human:\n"
     (with-current-buffer buffer
       (let ((org-loop-over-headlines-in-active-region t)
             (transient-mark-mode t))
@@ -275,14 +280,14 @@ The note is an ordinary LOGBOOK note."
     (agile-gtd-loop-test-write-note "Over to you")
     (let ((first (agile-gtd-loop-test-entry buffer "WAIT First"))
           (second (agile-gtd-loop-test-entry buffer "NEXT Second")))
-      (should (equal (plist-get first :tags) '("agent")))
-      (should (equal (plist-get second :tags) '("human"))))))
+      (should (equal (plist-get first :tags) '("%agent")))
+      (should (equal (plist-get second :tags) '("%human"))))))
 
 (ert-deftest agile-gtd-hand-over-works-on-the-agenda-item-at-point ()
   "From an agenda line, the item in its Org file is handed over the same way."
   (agile-gtd-loop-test-with-file
-      (concat "* NEXT [#A] Draft the reply :human:\n"
-              "* PROJ [#B] Plan the release :human:\n"
+      (concat "* NEXT [#A] Draft the reply :%human:\n"
+              "* PROJ [#B] Plan the release :%human:\n"
               "** NEXT Collect the changes\n")
     (org-agenda nil "h")
     (with-current-buffer org-agenda-buffer-name
@@ -299,19 +304,19 @@ The note is an ordinary LOGBOOK note."
                    "# Insert note for this entry."))
     (let ((action (agile-gtd-loop-test-entry buffer "WAIT"))
           (project (agile-gtd-loop-test-entry buffer "PROJ")))
-      (should (equal (plist-get action :tags) '("agent")))
+      (should (equal (plist-get action :tags) '("%agent")))
       (should (equal (cadr (plist-get action :logbook)) "Over to you"))
       (should (equal (plist-get project :state) "PROJ"))
-      (should (equal (plist-get project :tags) '("agent")))
+      (should (equal (plist-get project :tags) '("%agent")))
       (should (equal (cadr (plist-get project :logbook)) "Split it up")))
     (ert-info ("the agenda line shows the new state and tag")
       (with-current-buffer org-agenda-buffer-name
         (goto-char (point-min))
-        (should (re-search-forward "WAIT .*Draft the reply.*:agent:" nil t))))))
+        (should (re-search-forward "WAIT .*Draft the reply.*:%agent:" nil t))))))
 
 (ert-deftest agile-gtd-hand-over-leaves-a-waiting-action-in-the-next-actions ()
   "An action handed to the agent is a WAIT like any other: still a next action."
-  (agile-gtd-loop-test-with-file "* NEXT [#A] Draft the reply :human:\n"
+  (agile-gtd-loop-test-with-file "* NEXT [#A] Draft the reply :%human:\n"
     (agile-gtd-loop-test-goto buffer "NEXT")
     (with-current-buffer buffer (agile-gtd-hand-over))
     (agile-gtd-loop-test-write-note "Over to you")
@@ -331,7 +336,7 @@ The note is an ordinary LOGBOOK note."
 The keys are `:tags' (the loop tags on the item), `:state', `:claim' and
 `:someday' (nil, `local' or `inherited')."
   (let (combos)
-    (dolist (tags '(nil ("agent") ("human") ("agent" "human")))
+    (dolist (tags '(nil ("%agent") ("%human") ("%agent" "%human")))
       (dolist (state agile-gtd-loop-test-states)
         (dolist (claim '(nil t))
           (dolist (someday '(nil local inherited))
@@ -377,8 +382,8 @@ them, so an overlap or a gap in the definitions shows as a failure."
          (state (plist-get combo :state))
          (claim (plist-get combo :claim))
          (someday (plist-get combo :someday))
-         (agent (member "agent" tags))
-         (human-alone (and (member "human" tags) (not agent)))
+         (agent (member "%agent" tags))
+         (human-alone (and (member "%human" tags) (not agent)))
          (done (member state '("DONE" "KILL" "IDEA")))
          (task (member state '("TODO" "NEXT")))
          (turns (append
@@ -468,11 +473,11 @@ queries.  The answer with org-ql's preamble and without must agree."
   "A step under a project tagged for either side is in no turn.
 That holds even where Org lets the tags pass to children."
   (should (equal (agile-gtd-loop-test-turns-of
-                  (concat "* PROJ Project for the human :human:\n"
+                  (concat "* PROJ Project for the human :%human:\n"
                           "** NEXT Step for the human\n"
-                          "* PROJ Project for the agent :agent:\n"
+                          "* PROJ Project for the agent :%agent:\n"
                           "** NEXT Step for the agent\n"
-                          "* WAIT Work the agent holds :agent:\n"
+                          "* WAIT Work the agent holds :%agent:\n"
                           ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n"
                           "** WAIT Step under the work\n")
                   (lambda ()
@@ -486,28 +491,28 @@ That holds even where Org lets the tags pass to children."
                    ("Step under the work")))))
 
 (ert-deftest agile-gtd-turns-ignore-a-loop-tag-in-the-title ()
-  "A title holding `:agent:' or `:human:' tags nothing.
+  "A title holding `:%agent:' or `:%human:' tags nothing.
 org-ql's own `tags-local' finds such a title by its preamble and takes it
 for a tag; the turns read the heading's real tags."
   (should (equal (agile-gtd-loop-test-turns-of
-                  (concat "* NEXT Fix the :agent: parser\n"
-                          "* NEXT Ask :human: about it :#work:\n"
-                          "* NEXT Review the :agent: config :human:\n"))
-                 '(("Fix the :agent: parser")
-                   ("Ask :human: about it")
-                   ("Review the :agent: config" human-turn)))))
+                  (concat "* NEXT Fix the :%agent: parser\n"
+                          "* NEXT Ask :%human: about it :#work:\n"
+                          "* NEXT Review the :%agent: config :%human:\n"))
+                 '(("Fix the :%agent: parser")
+                   ("Ask :%human: about it")
+                   ("Review the :%agent: config" human-turn)))))
 
 (ert-deftest agile-gtd-turns-move-on-no-note ()
   "Notes in the LOGBOOK move no turn, whoever wrote the newest."
   (should (equal (agile-gtd-loop-test-turns-of
-                  (concat "* NEXT The human answered in a note :human:\n"
+                  (concat "* NEXT The human answered in a note :%human:\n"
                           ":LOGBOOK:\n"
                           "- Note taken on [2026-10-07 Wed 11:00] \\\\\n"
                           "  Take the second one.\n"
                           "- Note taken on [2026-10-07 Wed 10:00] \\\\\n"
                           "  agent: Which one?\n"
                           ":END:\n"
-                          "* WAIT The agent asked in a note :human:\n"
+                          "* WAIT The agent asked in a note :%human:\n"
                           ":LOGBOOK:\n"
                           "- Note taken on [2026-10-07 Wed 11:00] \\\\\n"
                           "  agent: Which one?\n"
@@ -523,8 +528,8 @@ for a tag; the turns read the heading's real tags."
                           ":PROPERTIES:\n:CLAIMED_BY: claude\n:END:\n"
                           "* WAIT Claimed by the old name :ai:\n"
                           ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n"
-                          "* NEXT The old agent tag :agent:\n"
-                          "* NEXT The old human tag :human:\n")
+                          "* NEXT The old agent tag :%agent:\n"
+                          "* NEXT The old human tag :%human:\n")
                   (lambda ()
                     (setq agile-gtd-agent-tag "ai"
                           agile-gtd-human-tag "me"
@@ -538,9 +543,9 @@ for a tag; the turns read the heading's real tags."
 (ert-deftest agile-gtd-turns-answer-to-their-long-names ()
   "Each turn answers to its `agile-gtd-' name as to its short one."
   (agile-gtd-loop-test-with-file
-      (concat "* NEXT The human's move :human:\n"
-              "* NEXT The agent's move :agent:\n"
-              "* WAIT The agent's work :agent:\n"
+      (concat "* NEXT The human's move :%human:\n"
+              "* NEXT The agent's move :%agent:\n"
+              "* WAIT The agent's work :%agent:\n"
               ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n")
     (pcase-dolist (`(,short ,long) '(((human-turn) (agile-gtd-human-turn))
                                      ((agent-turn) (agile-gtd-agent-turn))
@@ -554,7 +559,7 @@ for a tag; the turns read the heading's real tags."
 
 (ert-deftest agile-gtd-agent-turn-refuses-an-unknown-kind ()
   "A misspelt kind of agent turn fails loudly rather than matching nothing."
-  (agile-gtd-loop-test-with-file "* NEXT The agent's move :agent:\n"
+  (agile-gtd-loop-test-with-file "* NEXT The agent's move :%agent:\n"
     (dolist (query '((agent-turn delegate) (agent-turn human-turn) (agent-turn 'agent-wait)))
       (ert-info ((format "%S" query))
         (should-error (org-ql-select buffer query) :type 'user-error)))))
@@ -564,16 +569,16 @@ for a tag; the turns read the heading's real tags."
 
 (defconst agile-gtd-loop-test-moves
   (concat "* NEXT [#A] Chain first\n"
-          "* NEXT [#C] Blocked question :human:\n"
+          "* NEXT [#C] Blocked question :%human:\n"
           ":PROPERTIES:\n:BLOCKER:  previous-sibling\n:END:\n"
-          "* NEXT [#B] Question for the human :human:\n"
-          "* PROJ [#F] Project for the human :human:\n"
+          "* NEXT [#B] Question for the human :%human:\n"
+          "* PROJ [#F] Project for the human :%human:\n"
           "** NEXT Step under the human's project\n"
-          "* Plain heading for the human :human:\n"
-          "* TODO [#B] Deferred question :human:\n"
-          "* DONE Answered question :human:\n"
-          "* NEXT [#A] Task for the agent :agent:\n"
-          "* WAIT [#B] Work the agent holds :agent:\n"
+          "* Plain heading for the human :%human:\n"
+          "* TODO [#B] Deferred question :%human:\n"
+          "* DONE Answered question :%human:\n"
+          "* NEXT [#A] Task for the agent :%agent:\n"
+          "* WAIT [#B] Work the agent holds :%agent:\n"
           ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n")
   "Items in each turn, and items in none.")
 
@@ -635,11 +640,11 @@ for a tag; the turns read the heading's real tags."
 
 (ert-deftest agile-gtd-agenda-h-searches-the-loop-files-too ()
   "`h' searches `agile-gtd-loop-files' beside the agenda files, and only `h' does."
-  (agile-gtd-loop-test-with-file "* NEXT [#A] Agenda question :human:\n"
+  (agile-gtd-loop-test-with-file "* NEXT [#A] Agenda question :%human:\n"
     (let ((loop-file (expand-file-name "agentic.org" org-directory)))
       (with-temp-file loop-file
-        (insert "* NEXT [#A] Loop question :human:\n"
-                "* WAIT [#B] Loop work :agent:\n"
+        (insert "* NEXT [#A] Loop question :%human:\n"
+                "* WAIT [#B] Loop work :%agent:\n"
                 ":PROPERTIES:\n:AGENT_CLAIM: claude\n:END:\n"))
       (setq agile-gtd-loop-files '("agentic.org"))
       (unwind-protect
