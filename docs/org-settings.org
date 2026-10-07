@@ -54,6 +54,12 @@ agile-gtd also removes Org's own blockers from =org-blocker-hook=, which
 Org installs whenever the two enforce options are switched on through
 Customize.
 
+A chain's =TRIGGER= changes the next step's state inside the change that
+closed the step before it, and Org keeps one log entry pending at a time.
+With this step on, the state change org-edna's =todo!= action makes is
+logged at once, so closing a step still asks for its own note and records
+it on that step; see [[file:task-dependencies.org][Task dependencies]].
+
 * Logging
 
 State changes and notes are the task's history. The weekly review reads it
@@ -67,7 +73,11 @@ from the agenda files and their archives.
 | =org-log-repeat=                           | =time=      | Each pass of a repeating task leaves a dated line, so a habit or recurring action keeps its history.                                                                        |
 | =org-log-redeadline=                       | =time=      | A moved deadline is recorded. Deadlines feed the rank, and a deadline that keeps moving shows in the log.                                                                   |
 | =org-log-reschedule=                       | =time=      | A moved scheduled date is recorded, for the same reason.                                                                                                                    |
+| =org-log-refile=                           | =time=      | A refile is recorded, so the history shows when an item changed place, such as an inbox capture filed into its project.                                                     |
 | =org-log-state-notes-insert-after-drawers= | =nil=       | Has no effect while notes go into the drawer. In a file that turns the drawer off (=#+STARTUP: nologdrawer=), notes go right under the heading, ahead of its other drawers. |
+
+Which state changes are logged is set by the TODO keywords themselves; see
+[[file:workflow.org::*States][States]].
 
 * Archive and habits
 
@@ -125,3 +135,7 @@ configuration.
 
 Org's default for =org-use-tag-inheritance= is already =t=; agile-gtd states
 it because the workflow breaks without it.
+
+The =agent= and =human= tags are kept out of inheritance on every refresh,
+whether or not this step is on, through =org-tags-exclude-from-inheritance=;
+see [[file:agent-loop.org::*Whose move it is][Whose move it is]].

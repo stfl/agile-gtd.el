@@ -32,16 +32,26 @@ Headings without a TODO keyword are structural headings only.
 
 * States
 
-| Keyword | Meaning                                                     |
-|---------+-------------------------------------------------------------|
-| TODO    | Captured input that is not actionable yet.                  |
-| NEXT    | Concrete next action that is actionable now.                |
-| WAIT    | Open loop waiting on a person, event, or dependency.        |
-| PROJ    | Multi-step outcome; should usually own NEXT/WAIT children.  |
-| EPIC    | Larger body of work grouping related projects.              |
-| IDEA    | Not committed work; kept out of the active execution flow.  |
-| DONE    | Completed successfully.                                     |
-| KILL    | Explicitly cancelled; kept for history instead of deleting. |
+| Keyword | Meaning                                                     | Logged                               |
+|---------+-------------------------------------------------------------+--------------------------------------|
+| TODO    | Captured input that is not actionable yet.                  | nothing                              |
+| NEXT    | Concrete next action that is actionable now.                | the time it is entered               |
+| WAIT    | Open loop waiting on a person, event, or dependency.        | a note on entry, the time it is left |
+| PROJ    | Multi-step outcome; should usually own NEXT/WAIT children.  | the time it is entered               |
+| EPIC    | Larger body of work grouping related projects.              | the time it is entered               |
+| IDEA    | Not committed work; kept out of the active execution flow.  | nothing                              |
+| DONE    | Completed successfully.                                     | a note: what was done                |
+| KILL    | Explicitly cancelled; kept for history instead of deleting. | a note: why it was dropped           |
+
+Every logged change lands in the =LOGBOOK= drawer as a dated line, so a
+heading's drawer reads as its history: when it became actionable, what it
+waited on and for how long, and how it ended. The note on entering =WAIT=
+says who or what the item waits on. The keywords and their logging come from
+=agile-gtd-todo-keywords=:
+
+#+begin_example
+TODO(t) NEXT(n!) WAIT(w@/!) PROJ(p!) EPIC(e!) | DONE(d@) IDEA(i) KILL(k@)
+#+end_example
 
 A project or epic is healthy when it has at least one open child in =PROJ=,
 =EPIC=, =NEXT= or =WAIT=. One with no such child is stuck. A project or epic
@@ -69,18 +79,26 @@ Repeating tasks are modeled with a scheduled repeat timestamp and
 
 The workflow uses tags as control signals rather than decoration.
 
-| Tag        | Meaning |
-|------------+---------|
-| SOMEDAY    | Deferred work, hidden from the active backlog |
-| HABIT      | Recurring habit or routine |
-| LASTMILE   | Final-stretch item that deserves extra visibility |
-| #work      | Work item |
-| #personal  | Personal item |
-| @context   | GTD context such as a place, person, or tool |
+| Tag       | Meaning                                           |
+|-----------+---------------------------------------------------|
+| SOMEDAY   | Deferred work, hidden from the active backlog     |
+| HABIT     | Recurring habit or routine                        |
+| LASTMILE  | Final-stretch item that deserves extra visibility |
+| #work     | Work item                                         |
+| #personal | Personal item                                     |
+| @context  | GTD context such as a place, person, or tool      |
+| agent     | The agent's move: an AI agent works on it next    |
+| human     | The human's move: you answer or decide next       |
 
 Domain- or client-specific tags can be layered on top via =agile-gtd-projects=
 (see [[file:projects.org][Projects]]).
 When files use =#+filetags=, those tags classify every heading in the file.
+
+=agent= and =human= are the exception: they stay on the heading that carries
+them and never pass to its children, so tagging a project hands over the
+project and not each of its tasks. Further tags can be kept on their heading
+the same way; see [[file:agent-loop.org::*Whose move it is][Whose move it is]]. Handing items to an agent and
+finding what waits on you is described in [[file:agent-loop.org][Working with an agent]].
 
 * Deferred work
 

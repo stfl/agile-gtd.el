@@ -24,12 +24,12 @@ eask exec emacs -batch -Q -L . \
 
 ## Architecture
 
-This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion test files under `test/`. It depends on org-records-mcp, which is not on MELPA (MELPA's `org-mcp` is a different package with no views); Eask fetches `stfl/org-records-mcp` from GitHub's `main` branch.
+This is a single-file Emacs Lisp package (`agile-gtd.el`) with ten companion test files under `test/`. It depends on org-records-mcp, which is not on MELPA (MELPA's `org-mcp` is a different package with no views); Eask fetches `stfl/org-records-mcp` from GitHub's `main` branch.
 
 ### Main entry points
 
 - `agile-gtd-enable` — call once after customising variables; delegates to `agile-gtd-refresh`
-- `agile-gtd-refresh` — validates config, then applies all derived settings (priorities, keywords, tags, agenda files, refile targets, capture templates, agenda commands, org-records-mcp views)
+- `agile-gtd-refresh` — validates config, then applies all derived settings (Org settings, loop-tag inheritance, priorities, keywords, tags, agenda files, refile targets, capture templates, agenda commands, org-records-mcp views)
 
 ### Key subsystems
 
@@ -41,6 +41,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 
 **TODO keywords**
 - Sequence: `TODO → NEXT → WAIT → PROJ → EPIC | DONE, IDEA, KILL`
+- Logging lives in the selectors of `agile-gtd-todo-keywords` (`NEXT(n!)`, `WAIT(w@/!)`, `PROJ(p!)`, `EPIC(e!)`, `DONE(d@)`, `KILL(k@)`); nothing parses those strings, Org strips the suffixes into `org-todo-keywords-1`
 - Public accessors: `agile-gtd-project-keyword`, `agile-gtd-action-keywords`
 
 **View ranges** (`agile-gtd-view-ranges`: today -> sprint -> upcoming -> all -> someday)
@@ -55,6 +56,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 - `agile-gtd-agenda-query-next-actions` — unblocked NEXT/WAIT, or any open task inside `today` regardless of blocking, cut at the range. `hide-today` (passed by the agenda blocks under the day block) removes everything inside `today` by rank, from both halves, at every range, so the `[today]` block is always empty
 - `agile-gtd-agenda-query-backlog` — PROJ and standalone NEXT/WAIT, blocked included
 - `agile-gtd-agenda-query-inbox` — unprocessed inbox items
+- `agile-gtd-agenda-query-human` — open items carrying `agile-gtd-human-tag` locally (`tags-local`, so it holds whatever `org-tags-exclude-from-inheritance` says); feeds the `h` command and the `human` view key
 - `agile-gtd-agenda-query-stuck-projects` — PROJ or EPIC (`agile-gtd--container-keywords`) with no open PROJ/EPIC/NEXT/WAIT child
 - Project-specific agenda commands generated from `agile-gtd-projects`
 
@@ -63,7 +65,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 - `agile-gtd--area-agenda-command` builds `a`, `pp`, `ww` and `w<key>` from it; the org-records-mcp views are built from the same rows. A change to what an area filters or defaults to goes in the table, never in one consumer
 
 **org-records-mcp views** (`agile-gtd--apply-org-records-mcp`, behind `agile-gtd-enable-org-records-mcp`)
-- `agile-gtd-org-records-mcp-views` generates keys `[<area>-]<view>[-<range>]`: 13 per area plus `inbox` and `tangling`. Each carries a literal `:query` and no `:filter`/`:range`, so org-records-mcp refuses parameters
+- `agile-gtd-org-records-mcp-views` generates keys `[<area>-]<view>[-<range>]`: 13 per area plus `inbox`, `tangling` and `human`. Each carries a literal `:query` and no `:filter`/`:range`, so org-records-mcp refuses parameters
 - The apply step merges views and the `rank`/`parent-priority` computed fields by name (dropping keys recorded in `agile-gtd--org-records-mcp-view-names` from the previous refresh), adds `rank` to `org-records-mcp-list-computed-fields` (what a match list carries unasked; `all` and the user's names are kept), sets `org-records-mcp-query-sort-fn`, `org-records-mcp-view-catalogue-function`, `org-records-mcp-allowed-files` (nil) and `org-records-mcp-file-scope-override` (t). It never starts the MCP server
 - `blocked` and `breadcrumbs` are org-records-mcp node fields, not agile-gtd computed fields. `blocked` answers `org-blocker-hook`, so it sees org-edna's blockers only while `agile-gtd--apply-org-settings` keeps `org-edna-mode` on
 - `agile-gtd-org-records-mcp-view-catalogue` writes the `org-view` description from the area table and range list; keep its words in step with the queries
@@ -85,6 +87,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 **Org settings** (`agile-gtd--apply-org-settings`, behind `agile-gtd-enable-org-settings`, default t)
 - Runs first in `agile-gtd-refresh`: turns on `org-edna-mode`, adds `org-habit` to `org-modules`, removes Org's own enforce blockers from `org-blocker-hook`, and `set-default`s every pair in `agile-gtd--org-settings`
 - `set-default`, not `setq`: a refresh run from an Org buffer whose startup options made a variable local must not change that buffer alone
+- Next to `org-edna-mode` it adds `agile-gtd--org-edna-todo-keep-log-a` around `org-edna-action/todo!` (removed when the flag is off). A TRIGGER's `org-todo` runs inside the change that fired it, and Org keeps one pending log entry: without the advice `NEXT(n!)` on the triggered sibling replaces the pending `DONE(d@)` note, so the prompt never comes and org-records-mcp writes the closing note on the sibling. The advice binds fresh `org-log-note-*` state (fresh markers: `org-add-log-setup` moves them), writes the triggered entry at once without prose (`agile-gtd--store-log-note-now`), and leaves `post-command-hook` alone when `org-add-log-note` was on it already. `agile-gtd-chain-test.el` covers both paths
 - `org-archive-location` derives from `org-directory` through `agile-gtd--expand-org-path`; values that follow from agile-gtd's own configuration are derived, never hard-coded
 - Blocked tasks are hidden globally (`org-agenda-dim-blocked-tasks` `invisible`); the area commands (`agile-gtd--area-agenda-command`) and the `pb`/`wb` backlogs dim them with a command-level setting, because `org-agenda-finalize` sees only command settings, never a block's
 - A setting added here goes into both test sandboxes and into [docs/org-settings.org](docs/org-settings.org), with its reason
@@ -95,6 +98,11 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 - The kill-ring advice runs at depth -50, outermost, so it reads `org-stored-links` after the ID advice; it never writes `org-stored-links`, whose form `org-insert-last-stored-link` relies on
 - org-roam is not a dependency: `org-roam-directory` is read with `bound-and-true-p`
 - [docs/storing-links.org](docs/storing-links.org) describes the behaviour and the org-records-mcp contract for users
+
+**Agent/human loop** (`agile-gtd-agent-tag`, `agile-gtd-human-tag`, `agile-gtd-loop-tags`)
+- The two tags say whose move an item is; states stay the human's. `agile-gtd--apply-loop-tags` runs on every refresh in its own step, whatever `agile-gtd-enable-org-settings` says: it merges the two tag defcustoms' values plus `agile-gtd-loop-tags` (extra tags only, default nil) into `org-tags-exclude-from-inheritance` rather than setting it, takes out only what the previous refresh added (`agile-gtd--loop-tags-excluded`, as the org-records-mcp view names are tracked), and never records a tag the user had excluded first. Never list the agent or human name as a literal: a rename must move the exclusion with it
+- `agile-gtd-hand-over` refuses a closed item, changes the state first — `org-todo` WAIT for an open task (`agile-gtd--hand-over-waits-p`, derived from `agile-gtd--wait-keyword` and `agile-gtd--container-keywords`), read back because a Lisp `org-todo` reports a block only in the echo area — or `org-add-note`, and only then swaps the local `human` tag for `agent`, so a refused change leaves nothing half done. Both region-loop variables are bound nil. In an agenda it uses the `org-agenda-*` equivalents, so the lines update. The note is Org's own deferred prompt (`post-command-hook`), and exactly one: a second `org-add-log-setup` would overwrite the WAIT note. WAIT stays WAIT with a plain note, because `org-todo` logs a WAIT-to-WAIT change. There is no hand-back command: the agent hands back through org-records-mcp
+- The `h` command dims blocked items (command-level `org-agenda-dim-blocked-tasks`, as the backlogs do). WAIT `agent` items stay in the next-actions queries: no existing filter reads the loop tags
 
 **org-edna integration**
 - `agile-gtd-trigger-next-sibling` / `agile-gtd-blocker-previous-sibling` wire up task-chaining via org-edna triggers/blockers

@@ -12,6 +12,7 @@ Human reference pages, one per question a user arrives with. Every file here is 
 | `task-dependencies.org` | org-edna chains and how blocked tasks appear |
 | `org-ql-predicates.org` | the public org-ql predicates |
 | `org-records-mcp.org` | view keys, key grammar, what agile-gtd sets in org-records-mcp, setup |
+| `agent-loop.org` | the `agent` and `human` tags, `agile-gtd-hand-over`, the `h` command and the `human` view key |
 | `storing-links.org` | which identifier `org-store-link` uses where, the kill-ring copy, compatibility with org-records-mcp |
 | `configuration.org` | what `agile-gtd-enable` / `agile-gtd-refresh` change in Org |
 | `org-settings.org` | each Org option agile-gtd applies, its value and its reason |

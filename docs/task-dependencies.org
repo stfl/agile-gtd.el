@@ -28,6 +28,14 @@ The common pattern is:
   automatically becomes =NEXT=.
 - =BLOCKER: previous-sibling= — this task stays blocked until the previous sibling is =DONE=.
 
+Closing a step logs on two headings. The step you close asks for its =DONE=
+note and records it, whether you close it with =org-todo= or an assistant
+closes it through org-records-mcp with a note. The step the trigger moves to
+=NEXT= records the time of that move at once. A triggered state that asks
+for a note of its own, such as =WAIT=, is recorded without one. This holds
+while =agile-gtd-enable-org-settings= is on; see
+[[file:org-settings.org::*Dependencies][Dependencies]].
+
 A blocked task stays out of the next actions until it is due: the =next= view
 keys list a blocked task scheduled or due today, and the agenda shows it dimmed
 in the day block. Backlogs list blocked tasks, dimmed in the agenda.

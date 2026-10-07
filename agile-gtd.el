@@ -99,15 +99,19 @@
 (defcustom agile-gtd-todo-keywords
   '((sequence
      "TODO(t)"
-     "NEXT(n)"
-     "WAIT(w)"
-     "PROJ(p)"
-     "EPIC(e)"
+     "NEXT(n!)"
+     "WAIT(w@/!)"
+     "PROJ(p!)"
+     "EPIC(e!)"
      "|"
      "DONE(d@)"
      "IDEA(i)"
      "KILL(k@)"))
-  "TODO keyword sequence used by Agile GTD."
+  "TODO keyword sequence used by Agile GTD.
+Every state past capture leaves a line in the LOGBOOK: entering NEXT,
+PROJ or EPIC records the time, entering WAIT asks what is awaited and
+leaving it records the time, and DONE and KILL ask for a closing note.
+TODO and IDEA record nothing."
   :type 'sexp
   :group 'agile-gtd)
 
@@ -139,6 +143,30 @@
 (defcustom agile-gtd-personal-tag "#personal"
   "Tag used for personal items."
   :type 'string
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-agent-tag "agent"
+  "Tag on an item whose next move is the agent\\='s.
+`agile-gtd-hand-over' puts it on the item it hands over."
+  :type 'string
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-human-tag "human"
+  "Tag on an item whose next move is the human\\='s.
+The `h' agenda command and the org-records-mcp `human' view list the
+open items carrying it themselves; `agile-gtd-hand-over' takes it off."
+  :type 'string
+  :group 'agile-gtd)
+
+(defcustom agile-gtd-loop-tags nil
+  "Tags kept on their heading besides the agent and human tags.
+`agile-gtd-agent-tag' and `agile-gtd-human-tag' say whose move an item
+is, and a tag on a project must not hand every child over with it, so
+every refresh adds both to `org-tags-exclude-from-inheritance', and the
+tags listed here with them.  The names already there stay.  A tag that
+leaves this list, or a renamed agent or human tag, is inherited again
+after the next refresh, unless it was excluded before agile-gtd added it."
+  :type '(repeat string)
   :group 'agile-gtd)
 
 (defcustom agile-gtd-projects nil
@@ -248,7 +276,8 @@ Starting the MCP server stays with the user\\='s configuration."
 
 (defcustom agile-gtd-enable-org-settings t
   "Whether `agile-gtd-refresh' should apply the Org settings the workflow needs.
-When non-nil, every refresh turns on `org-edna-mode', adds `org-habit' to
+When non-nil, every refresh turns on `org-edna-mode', has org-edna\\='s
+todo! action log the change it makes at once, adds `org-habit' to
 `org-modules', turns off Org\='s own TODO dependency checks and sets the
 logging, archive, habit, agenda and inheritance options the views rely
 on.  docs/org-settings.org lists each value and why it is needed.  To
@@ -321,9 +350,13 @@ removes the advice."
   "Return the GTD keywords of headings that hold other work: projects and epics."
   (list (agile-gtd--project-keyword) "EPIC"))
 
+(defun agile-gtd--wait-keyword ()
+  "Return the GTD keyword of an item waiting on someone or something."
+  "WAIT")
+
 (defun agile-gtd--action-keywords ()
   "Return the GTD action keywords."
-  '("NEXT" "WAIT"))
+  (list "NEXT" (agile-gtd--wait-keyword)))
 
 (defun agile-gtd-project-keyword ()
   "Return the public GTD project keyword."
@@ -912,6 +945,15 @@ these are included."
   `(and (todo)
         (tags ,@agile-gtd-inbox-tags)))
 
+(defun agile-gtd-agenda-query-human ()
+  "Return org-ql sexp for the human\\='s moves.
+These are the open items carrying `agile-gtd-human-tag' themselves.  The
+tag is read off the item alone, whatever `org-tags-exclude-from-inheritance'
+says: a project tagged for the human asks about the project, not about
+each of its tasks."
+  `(and (todo)
+        (tags-local ,agile-gtd-human-tag)))
+
 (defun agile-gtd-agenda-query-backlog (&optional tag-filter range)
   "Return org-ql sexp for the backlog inside RANGE.
 The backlog holds projects and standalone next actions, blocked ones
@@ -1092,6 +1134,14 @@ the day block above it already carries."
                     ((org-ql-block-header "Inbox")
                      (org-super-agenda-groups '((:auto-property "CREATED")))))))
     ,(agile-gtd--area-agenda-command (agile-gtd--area nil))
+    ;; Every open item the human has to answer, at any priority and blocked
+    ;; or not: a blocked one is shown dimmed, for the reason the backlog
+    ;; commands give, because unblocking it may be the move.
+    ("h" "My Moves"
+     ((agile-gtd-agenda-ql-block (agile-gtd-agenda-query-human)
+                                 ((org-ql-block-header "My Moves")
+                                  (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
+     ((org-agenda-dim-blocked-tasks t)))
     ("A" "Agenda Weekly"
      ((agenda ""
               ((org-agenda-span 'week)
@@ -1454,6 +1504,71 @@ any agenda buffer happens to be showing."
   (agile-gtd-trigger-next-sibling)
   (agile-gtd-blocker-previous-sibling))
 
+(defun agile-gtd--hand-over-waits-p (state)
+  "Non-nil when handing over an open item in STATE moves it to WAIT.
+An open task does: one not waiting yet and holding no other work, which
+is TODO or NEXT.  A project or epic keeps its state, and so does an item
+already waiting, so Org logs no change from WAIT to WAIT."
+  (and state
+       (not (member state (cons (agile-gtd--wait-keyword)
+                                (agile-gtd--container-keywords))))))
+
+(defun agile-gtd--hand-over-check-open ()
+  "Refuse to hand over the heading at point when it is closed."
+  (when (org-entry-is-done-p)
+    (user-error "Nothing to hand over: \"%s\" is %s"
+                (org-get-heading t t t t) (org-get-todo-state))))
+
+(defun agile-gtd--hand-over-check-waiting ()
+  "Refuse to go on when the heading at point did not move to WAIT.
+`org-todo' called from Lisp reports a blocked change in the echo area
+and returns, so the state is read back rather than assumed."
+  (unless (equal (org-get-todo-state) (agile-gtd--wait-keyword))
+    (user-error "\"%s\" could not move to %s; nothing is handed over"
+                (org-get-heading t t t t) (agile-gtd--wait-keyword))))
+
+;;;###autoload
+(defun agile-gtd-hand-over ()
+  "Hand the item at point to the agent, asking for one note.
+Works on the heading at point in an Org buffer and on the item at point
+in an agenda.  A TODO or NEXT item moves to WAIT, and the note Org asks
+for on entering WAIT is the hand-over note.  Any other open item keeps
+its state and gets a plain LOGBOOK note.  Then the item loses its own
+`agile-gtd-human-tag' and gains `agile-gtd-agent-tag'.
+
+A closed item is refused, and so is a state change Org refuses, before
+anything is changed.  An active region changes nothing but the item at
+point.  The note may be left empty: the tag alone hands the item over,
+and the LOGBOOK still records when.  Org asks for the note once the
+command returns, in its usual note buffer."
+  (interactive)
+  (if (derived-mode-p 'org-agenda-mode)
+      (let* ((marker (or (org-get-at-bol 'org-hd-marker) (org-agenda-error)))
+             (state (org-with-point-at marker
+                      (agile-gtd--hand-over-check-open)
+                      (org-get-todo-state)))
+             (org-agenda-loop-over-headlines-in-active-region nil))
+        (if (agile-gtd--hand-over-waits-p state)
+            (progn
+              (org-agenda-todo (agile-gtd--wait-keyword))
+              (org-with-point-at marker (agile-gtd--hand-over-check-waiting)))
+          (org-agenda-add-note))
+        (org-agenda-set-tags agile-gtd-human-tag 'off)
+        (org-agenda-set-tags agile-gtd-agent-tag 'on))
+    (unless (derived-mode-p 'org-mode)
+      (user-error "Not in an Org or agenda buffer"))
+    (save-excursion
+      (org-back-to-heading t)
+      (agile-gtd--hand-over-check-open)
+      (let ((org-loop-over-headlines-in-active-region nil))
+        (if (agile-gtd--hand-over-waits-p (org-get-todo-state))
+            (progn
+              (org-todo (agile-gtd--wait-keyword))
+              (agile-gtd--hand-over-check-waiting))
+          (org-add-note)))
+      (org-toggle-tag agile-gtd-human-tag 'off)
+      (org-toggle-tag agile-gtd-agent-tag 'on))))
+
 (defun agile-gtd--item-rank ()
   "Return the virtual priority rank for the Org item at point."
   (let* ((element     (org-element-at-point))
@@ -1625,12 +1740,17 @@ included, no habits")
 takes no range"))
   "The views every area asks, each with what it holds for the catalogue.")
 
-(defconst agile-gtd--org-records-mcp-global-views
-  '((inbox . "open items carrying an inbox tag; asked of everything only, \
+(defun agile-gtd--org-records-mcp-global-views ()
+  "Return the views asked of everything only, each with what it holds.
+They take neither area nor range."
+  `((inbox . "open items carrying an inbox tag; asked of everything only, \
 with no area and no range")
     (tangling . "open items under a done ancestor; asked of everything only, \
-with no area and no range"))
-  "The views asked of everything only, taking neither area nor range.")
+with no area and no range")
+    (human . ,(format "open items tagged %s on the item itself, never by \
+inheritance: the human's moves, at any priority, blocked ones included; asked \
+of everything only, with no area and no range"
+                      agile-gtd-human-tag))))
 
 (defun agile-gtd--org-records-mcp-range-description (range)
   "Return what RANGE admits, for the catalogue."
@@ -1694,7 +1814,8 @@ refuses both.  The areas are `agile-gtd-areas', the same table the agenda
 commands are built from."
   (append (mapcan #'agile-gtd--org-records-mcp-area-views (agile-gtd-areas))
           (list (list 'inbox :query (agile-gtd-agenda-query-inbox))
-                (list 'tangling :query '(agile-gtd-tangling)))))
+                (list 'tangling :query '(agile-gtd-tangling))
+                (list 'human :query (agile-gtd-agenda-query-human)))))
 
 (defun agile-gtd--org-records-mcp-computed-fields ()
   "Return the computed fields agile-gtd gives every org-records-mcp node."
@@ -1758,7 +1879,8 @@ range.  A key is [<area>-]<view>[-<range>], for example private-next, \
      (mapconcat (lambda (view)
                   (agile-gtd--org-records-mcp-catalogue-entry
                    item (format "%s - %s" (car view) (cdr view))))
-                (append agile-gtd--org-records-mcp-views agile-gtd--org-records-mcp-global-views)
+                (append agile-gtd--org-records-mcp-views
+                        (agile-gtd--org-records-mcp-global-views))
                 "")
      indent "range - narrowest first, optional on next and backlog:\n"
      (mapconcat (lambda (range)
@@ -1824,6 +1946,7 @@ docs/org-settings.org gives the reason for each."
     (org-log-repeat . time)
     (org-log-redeadline . time)
     (org-log-reschedule . time)
+    (org-log-refile . time)
     (org-log-state-notes-insert-after-drawers . nil)
     ;; Archive and habits
     (org-archive-location . ,(agile-gtd--expand-org-path "archive/%s::datetree"))
@@ -1853,14 +1976,91 @@ docs/org-settings.org gives the reason for each."
     (org-use-property-inheritance . t)
     (org-use-tag-inheritance . t)))
 
+(defvar agile-gtd--loop-tags-excluded nil
+  "The tags the last refresh added to `org-tags-exclude-from-inheritance'.
+A refresh takes these out before adding the current loop tags, so a tag
+dropped from them is inherited again.  A tag the user excluded before
+agile-gtd did is never recorded here, and so never taken out.")
+
+(defun agile-gtd--loop-tags ()
+  "Return the tags kept on their heading: agent, human, then the extra ones."
+  (seq-uniq (append (list agile-gtd-agent-tag agile-gtd-human-tag)
+                    agile-gtd-loop-tags)))
+
+(defun agile-gtd--apply-loop-tags ()
+  "Keep the loop tags out of tag inheritance, beside the user\\='s own.
+The user\\='s exclusions keep their order, and the loop tags follow them.
+This runs whatever `agile-gtd-enable-org-settings' says: the loop depends
+on it, and it never takes out an exclusion of the user\\='s."
+  (let* ((own (seq-difference (default-value 'org-tags-exclude-from-inheritance)
+                              agile-gtd--loop-tags-excluded))
+         (added (seq-difference (agile-gtd--loop-tags) own)))
+    (set-default 'org-tags-exclude-from-inheritance (append own added))
+    (setq agile-gtd--loop-tags-excluded added)))
+
+(defun agile-gtd--store-log-note-now ()
+  "Write the log entry Org has set up, with no prose, at once.
+`org-store-log-note' reads the prose from the current buffer and kills
+it, then restores the window configuration and point that
+`org-add-log-note' saves, so a buffer of this call\\='s own and both of
+those are given here."
+  (move-marker org-log-note-return-to (point))
+  (setq org-log-note-window-configuration (current-window-configuration)
+        org-log-setup nil)
+  (with-temp-buffer
+    (org-store-log-note)))
+
+(defun agile-gtd--org-edna-todo-keep-log-a (fn &rest args)
+  "Around advice for `org-edna-action/todo!': log the triggered change at once.
+FN is the action, called with ARGS.  A TRIGGER fires inside the state
+change that set it off, and Org keeps one log entry pending at a time.
+The triggered `org-todo' would replace the entry the triggering change
+left pending, so the note asked for on closing a step would be asked
+for, or written by org-records-mcp, on the step the trigger moved.
+
+The triggered change therefore runs with log-note state of its own, and
+its entry is written at once without prose.  The entry of the change
+that fired the trigger stays pending and is the one Org asks for.  The
+hook is left alone when `org-add-log-note' was on it before the action
+ran, since that is the pending entry\\='s."
+  (let ((theirs (memq #'org-add-log-note (default-value 'post-command-hook)))
+        (org-log-note-marker (make-marker))
+        (org-log-note-return-to (make-marker))
+        (org-log-note-purpose nil)
+        (org-log-note-state nil)
+        (org-log-note-previous-state nil)
+        (org-log-note-how nil)
+        (org-log-note-extra nil)
+        (org-log-note-effective-time nil)
+        (org-log-note-this-command this-command)
+        (org-log-note-recursion-depth (recursion-depth))
+        (org-log-note-window-configuration nil)
+        (org-log-post-message nil)
+        (org-note-abort nil)
+        (org-log-setup nil))
+    (unwind-protect
+        (prog1 (apply fn args)
+          (when org-log-setup
+            (agile-gtd--store-log-note-now)))
+      (unless theirs
+        (remove-hook 'post-command-hook #'org-add-log-note))
+      (set-marker org-log-note-marker nil)
+      (set-marker org-log-note-return-to nil))))
+
 (defun agile-gtd--apply-org-settings ()
   "Apply the Org settings the workflow depends on.
-Does nothing when `agile-gtd-enable-org-settings' is off.  Default values
-are set rather than whatever binding is current: a file\='s startup options
-make some of these local to its buffer, and a refresh run from that buffer
-would otherwise change it alone."
+Does nothing when `agile-gtd-enable-org-settings' is off, beyond taking
+back the org-edna advice an earlier refresh added.  Default values are
+set rather than whatever binding is current: a file\='s startup options
+make some of these local to its buffer, and a refresh run from that
+buffer would otherwise change it alone."
+  (unless agile-gtd-enable-org-settings
+    (advice-remove 'org-edna-action/todo! #'agile-gtd--org-edna-todo-keep-log-a))
   (when agile-gtd-enable-org-settings
     (org-edna-mode 1)
+    ;; The keywords log entering NEXT, and a chain's TRIGGER moves a step to
+    ;; NEXT inside the change that closed the one before it.
+    (advice-add 'org-edna-action/todo! :around #'agile-gtd--org-edna-todo-keep-log-a)
     (pcase-dolist (`(,variable . ,value) (agile-gtd--org-settings))
       (set-default variable value))
     ;; Org installs its own blockers from the Customize setters of the two
@@ -1963,6 +2163,7 @@ outermost, so it sees the links the ID advice made."
   (interactive)
   (agile-gtd--validate-configuration)
   (agile-gtd--apply-org-settings)
+  (agile-gtd--apply-loop-tags)
   (agile-gtd--apply-priorities)
   (agile-gtd--apply-org-modern-visuals)
   (agile-gtd--apply-todo-keywords)

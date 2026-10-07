@@ -59,6 +59,12 @@
      "** NEXT Private low project step\n\n"
      "* PROJ Private stuck project\n"
      "** TODO Private notes\n\n"
+     ;; The human's moves: tagged on the item itself.  The step does not
+     ;; inherit the tag, and a done item is no longer anyone's move.
+     "* TODO [#B] Private question for the human :human:\n\n"
+     "* PROJ [#F] Private project for the human :human:\n"
+     "** NEXT Private step under the human's project\n\n"
+     "* DONE Private answered question :human:\n\n"
      "* NEXT [#A] Private someday :SOMEDAY:\n\n"
      "* NEXT [#B] Work action :#work:\n\n"
      "* NEXT Work default action :#work:\n\n"
@@ -300,17 +306,24 @@ Its undated step is not pulled along: it ranks where its own cookie puts it."
                    '("Alpha stuck project")))
     (should-not (agile-gtd-org-records-mcp-test-titles "beta-stuck"))))
 
-(ert-deftest agile-gtd-org-records-mcp-inbox-and-tangling-are-global ()
-  "`inbox' and `tangling' exist once, and take neither area nor range."
+(ert-deftest agile-gtd-org-records-mcp-inbox-tangling-and-human-are-global ()
+  "`inbox', `tangling' and `human' exist once, and take neither area nor range."
   (agile-gtd-org-records-mcp-test-with-fixtures
     (should (equal (agile-gtd-org-records-mcp-test-titles "inbox") '("Inbox capture")))
     (should (equal (agile-gtd-org-records-mcp-test-titles "tangling") '("Tangled leftover")))
     (dolist (key '("private-inbox" "work-tangling" "inbox-today" "tangling-all"
-                   "stuck-sprint"))
+                   "stuck-sprint" "private-human" "human-today"))
       (ert-info (key)
         (should (string-match-p "Unknown view"
                                 (agile-gtd-org-records-mcp-test-refusal
                                  (lambda () (agile-gtd-org-records-mcp-test-view key)))))))))
+
+(ert-deftest agile-gtd-org-records-mcp-human-lists-the-human-s-moves ()
+  "`human' holds the open items tagged `human' themselves, most urgent first.
+A project's step does not inherit the tag, and a done item is no one's move."
+  (agile-gtd-org-records-mcp-test-with-fixtures
+    (should (equal (agile-gtd-org-records-mcp-test-titles "human")
+                   '("Private question for the human" "Private project for the human")))))
 
 (defun agile-gtd-org-records-mcp-test-area-keys (area)
   "Return the thirteen keys the grammar gives AREA, a key prefix."
@@ -330,7 +343,7 @@ Its undated step is not pulled along: it ranks where its own cookie puts it."
     (split-string (match-string 1 message) ", " t)))
 
 (ert-deftest agile-gtd-org-records-mcp-key-count ()
-  "Thirteen keys per area, plus `inbox' and `tangling', and every one resolves."
+  "Thirteen keys per area, plus `inbox', `tangling' and `human', each resolving."
   (agile-gtd-org-records-mcp-test-with-fixtures
     (let ((resolves (lambda (key)
                       (not (agile-gtd-org-records-mcp-test-refusal
@@ -338,7 +351,7 @@ Its undated step is not pulled along: it ranks where its own cookie puts it."
           (listed (agile-gtd-org-records-mcp-test-listed-keys)))
       (ert-info ("the grammar's keys and the keys org-view lists are one set")
         (should (equal (sort (copy-sequence listed) #'string<)
-                       (sort (append '("inbox" "tangling")
+                       (sort (append '("inbox" "tangling" "human")
                                      (mapcan #'agile-gtd-org-records-mcp-test-area-keys
                                              agile-gtd-org-records-mcp-test-areas))
                              #'string<))))
@@ -377,7 +390,7 @@ Its undated step is not pulled along: it ranks where its own cookie puts it."
 (ert-deftest agile-gtd-org-records-mcp-nodes-carry-rank-unasked ()
   "A view's nodes carry `rank' and no other computed field unasked."
   (agile-gtd-org-records-mcp-test-with-fixtures
-    (dolist (key '("next" "work-backlog" "inbox" "tangling"))
+    (dolist (key '("next" "work-backlog" "inbox" "tangling" "human"))
       (ert-info (key)
         (dolist (node (agile-gtd-org-records-mcp-test-view key))
           (should (equal (mapcar #'car (alist-get 'computed node)) '(rank))))))))
@@ -586,9 +599,11 @@ adds are the names `computed' lists."
       (should (string-match-p (regexp-quote "[<area>-]<view>[-<range>]") description))
       (dolist (word '("private" "work" "alpha" "beta"
                       "next" "backlog" "upcoming" "stuck" "inbox" "tangling"
-                      "today" "sprint" "all" "someday"))
+                      "human" "today" "sprint" "all" "someday"))
         (ert-info (word)
           (should (string-match-p (regexp-quote word) description))))
+      (ert-info ("the human view names the tag it reads")
+        (should (string-match-p "human - open items tagged human" description)))
       (ert-info ("the per-area defaults")
         (should (string-match-p "sprint for everything and private" description))
         (should (string-match-p "upcoming for work, alpha and beta" description)))
