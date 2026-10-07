@@ -12,12 +12,13 @@ ERT suites, split by concern:
 | `agile-gtd-startup-test.el` | the project registry, its normalisation and skip-and-warn, and the project-tag startup check |
 | `agile-gtd-links-test.el` | the `org-store-link` advice: `:ID:` versus `:CUSTOM_ID:` by file location, the kill-ring copy, non-interactive calls (org-records-mcp's link minting) left alone, the two flags |
 | `agile-gtd-org-records-mcp-test.el` | the org-records-mcp view keys, called through `org-records-mcp--tool-view` over fixture files; computed fields, refusals, the apply step and its flag; the keys and computed fields org-view's schema lists, read over tools/list |
+| `agile-gtd-loop-test.el` | the agent/human loop: the loop tags kept out of inheritance beside the user's own exclusions |
 
 ## Isolation
 
-The `agile-gtd-test-with-sandbox` macro (`agile-gtd-test.el`) isolates each test by binding all relevant org/agile-gtd/org-records-mcp variables to clean defaults and using a temporary `org-directory`. It and `agile-gtd-org-ql-test-with-sandbox` (`agile-gtd-org-ql-predicates-test.el`) both bind every variable `agile-gtd--apply-org-settings` sets, plus `org-edna-mode`, `org-blocker-hook`, `org-trigger-hook` and `org-modules`; keep both in step with `agile-gtd--org-settings`. Both also bind the two link flags and remove both `org-store-link` advices on exit, because advice is global state a `let` cannot undo. Always use one of these macros rather than mutating global state directly: a leaked `org-agenda-files` or `org-todo-keywords` makes a later test pass or fail for reasons unrelated to it.
+The `agile-gtd-test-with-sandbox` macro (`agile-gtd-test.el`) isolates each test by binding all relevant org/agile-gtd/org-records-mcp variables to clean defaults and using a temporary `org-directory`. It and `agile-gtd-org-ql-test-with-sandbox` (`agile-gtd-org-ql-predicates-test.el`) both bind every variable `agile-gtd--apply-org-settings` sets, plus `org-edna-mode`, `org-blocker-hook`, `org-trigger-hook` and `org-modules`; keep both in step with `agile-gtd--org-settings`. Both bind `org-tags-exclude-from-inheritance`, `agile-gtd-loop-tags` and `agile-gtd--loop-tags-excluded` too, because a refresh merges into the first rather than setting it. Both also bind the two link flags and remove both `org-store-link` advices on exit, because advice is global state a `let` cannot undo. Always use one of these macros rather than mutating global state directly: a leaked `org-agenda-files` or `org-todo-keywords` makes a later test pass or fail for reasons unrelated to it.
 
-`agile-gtd-org-records-mcp-test.el` requires `agile-gtd-test` for the sandbox. The Eask script loads `agile-gtd-test.el` first, which provides it; running the file alone needs `-L test` or an explicit `-l test/agile-gtd-test.el` before it.
+`agile-gtd-org-records-mcp-test.el` and `agile-gtd-loop-test.el` require `agile-gtd-test` for the sandbox. The Eask script loads `agile-gtd-test.el` first, which provides it; running the file alone needs `-L test` or an explicit `-l test/agile-gtd-test.el` before it.
 
 ## Adding a test file
 

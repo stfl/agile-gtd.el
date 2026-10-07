@@ -122,10 +122,17 @@ configuration.
 
 * Inheritance
 
-| Setting                        | Value | Why                                                                                                                                                                                                   |
-|--------------------------------+-------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| =org-use-tag-inheritance=      | =t=   | Area tags (=#work=), project and client tags, and =SOMEDAY= arrive through =#+filetags:= and parent headings. The area filters, the project views and the startup tag check all match inherited tags. |
-| =org-use-property-inheritance= | =t=   | A property set on a project, or on a file with =#+PROPERTY:=, holds for the tasks beneath it wherever a query asks for inherited values.                                                              |
+| Setting                             | Value                    | Why                                                                                                                                                                                                   |
+|-------------------------------------+--------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =org-use-tag-inheritance=           | =t=                      | Area tags (=#work=), project and client tags, and =SOMEDAY= arrive through =#+filetags:= and parent headings. The area filters, the project views and the startup tag check all match inherited tags. |
+| =org-use-property-inheritance=      | =t=                      | A property set on a project, or on a file with =#+PROPERTY:=, holds for the tasks beneath it wherever a query asks for inherited values.                                                              |
+| =org-tags-exclude-from-inheritance= | adds =agent= and =human= | These tags say whose move an item is. A project tagged =human= is yours to answer, not each of its tasks, so the tag stays on the heading carrying it.                                                |
 
 Org's default for =org-use-tag-inheritance= is already =t=; agile-gtd states
 it because the workflow breaks without it.
+
+The tags agile-gtd adds to =org-tags-exclude-from-inheritance= are those in
+=agile-gtd-loop-tags=. Your own entries in that variable stay, ahead of the
+loop tags. A tag you drop from =agile-gtd-loop-tags= is inherited again after
+the next refresh, unless you had excluded it yourself before agile-gtd added
+it. Add a tag to =agile-gtd-loop-tags= to keep it on its heading the same way.

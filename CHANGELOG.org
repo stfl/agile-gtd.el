@@ -12,6 +12,15 @@ and =KILL= are unchanged. A refile records its time too:
 ~org-log-refile~ is set to =time=. A configuration that sets
 ~agile-gtd-todo-keywords~ itself keeps its own keywords.
 
+** The =agent= and =human= tags stay on their heading
+
+Two tags say whose move an item is: =agent= and =human=. A refresh adds the
+tags in the new ~agile-gtd-loop-tags~ (those two by default) to
+~org-tags-exclude-from-inheritance~, so a tag on a project does not reach its
+children. Entries of your own in that variable stay. A tag dropped from
+~agile-gtd-loop-tags~ is inherited again after the next refresh, unless you
+had excluded it yourself.
+
 * 0.7.0
 
 Requires org-records-mcp 0.12.0.

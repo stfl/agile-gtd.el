@@ -26,6 +26,8 @@
           (org-super-agenda-header-separator nil)
           (org-tag-alist '(("@home" . ?h)))
           (org-tags-exclude-from-inheritance nil)
+          (agile-gtd-loop-tags '("agent" "human"))
+          (agile-gtd--loop-tags-excluded nil)
           (org-use-tag-inheritance t)
           (org-todo-keywords nil)
           (org-todo-repeat-to-state nil)

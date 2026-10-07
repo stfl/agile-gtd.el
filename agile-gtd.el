@@ -145,6 +145,17 @@ TODO and IDEA record nothing."
   :type 'string
   :group 'agile-gtd)
 
+(defcustom agile-gtd-loop-tags '("agent" "human")
+  "Tags that stay on the heading carrying them and never reach its children.
+They say whose move an item is, and a tag on a project must not hand
+every child over with it.  While `agile-gtd-enable-org-settings' is on,
+every refresh adds them to `org-tags-exclude-from-inheritance' and keeps
+the names already there.  A name dropped from this list is inherited
+again after the next refresh, unless it was excluded before agile-gtd
+added it."
+  :type '(repeat string)
+  :group 'agile-gtd)
+
 (defcustom agile-gtd-projects nil
   "The projects this configuration knows about, one plist each.
 
@@ -1858,6 +1869,21 @@ docs/org-settings.org gives the reason for each."
     (org-use-property-inheritance . t)
     (org-use-tag-inheritance . t)))
 
+(defvar agile-gtd--loop-tags-excluded nil
+  "The tags the last refresh added to `org-tags-exclude-from-inheritance'.
+A refresh takes these out before adding `agile-gtd-loop-tags', so a tag
+dropped from the list is inherited again.  A tag the user excluded before
+agile-gtd did is never recorded here, and so never taken out.")
+
+(defun agile-gtd--apply-loop-tags ()
+  "Keep `agile-gtd-loop-tags' out of tag inheritance, beside the user\\='s own.
+The user\\='s exclusions keep their order, and the loop tags follow them."
+  (let* ((own (seq-difference (default-value 'org-tags-exclude-from-inheritance)
+                              agile-gtd--loop-tags-excluded))
+         (added (seq-uniq (seq-difference agile-gtd-loop-tags own))))
+    (set-default 'org-tags-exclude-from-inheritance (append own added))
+    (setq agile-gtd--loop-tags-excluded added)))
+
 (defun agile-gtd--apply-org-settings ()
   "Apply the Org settings the workflow depends on.
 Does nothing when `agile-gtd-enable-org-settings' is off.  Default values
@@ -1868,6 +1894,7 @@ would otherwise change it alone."
     (org-edna-mode 1)
     (pcase-dolist (`(,variable . ,value) (agile-gtd--org-settings))
       (set-default variable value))
+    (agile-gtd--apply-loop-tags)
     ;; Org installs its own blockers from the Customize setters of the two
     ;; enforce options, which `set-default' does not run.
     (remove-hook 'org-blocker-hook

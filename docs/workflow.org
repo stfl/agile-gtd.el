@@ -79,18 +79,25 @@ Repeating tasks are modeled with a scheduled repeat timestamp and
 
 The workflow uses tags as control signals rather than decoration.
 
-| Tag        | Meaning |
-|------------+---------|
-| SOMEDAY    | Deferred work, hidden from the active backlog |
-| HABIT      | Recurring habit or routine |
-| LASTMILE   | Final-stretch item that deserves extra visibility |
-| #work      | Work item |
-| #personal  | Personal item |
-| @context   | GTD context such as a place, person, or tool |
+| Tag       | Meaning                                           |
+|-----------+---------------------------------------------------|
+| SOMEDAY   | Deferred work, hidden from the active backlog     |
+| HABIT     | Recurring habit or routine                        |
+| LASTMILE  | Final-stretch item that deserves extra visibility |
+| #work     | Work item                                         |
+| #personal | Personal item                                     |
+| @context  | GTD context such as a place, person, or tool      |
+| agent     | The agent's move: an AI agent works on it next    |
+| human     | The human's move: you answer or decide next       |
 
 Domain- or client-specific tags can be layered on top via =agile-gtd-projects=
 (see [[file:projects.org][Projects]]).
 When files use =#+filetags=, those tags classify every heading in the file.
+
+=agent= and =human= are the exception: they stay on the heading that carries
+them and never pass to its children, so tagging a project hands over the
+project and not each of its tasks. The tags that behave this way are listed in
+=agile-gtd-loop-tags=; see [[file:org-settings.org::*Inheritance][Inheritance]].
 
 * Deferred work
 

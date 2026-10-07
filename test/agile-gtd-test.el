@@ -23,6 +23,9 @@
           (org-stuck-projects nil)
           (org-super-agenda-header-separator nil)
           (org-tag-alist '(("@home" . ?h)))
+          (org-tags-exclude-from-inheritance nil)
+          (agile-gtd-loop-tags '("agent" "human"))
+          (agile-gtd--loop-tags-excluded nil)
           (org-todo-keywords nil)
           (org-todo-repeat-to-state nil)
           (org-todo-keyword-faces nil)
@@ -235,7 +238,8 @@ options' Customize setters, which a plain assignment does not run."
            (variables '(org-agenda-dim-blocked-tasks org-log-into-drawer
                         org-log-done org-log-refile org-archive-location org-modules
                         org-habit-preceding-days org-agenda-span
-                        org-deadline-warning-days org-use-property-inheritance))
+                        org-deadline-warning-days org-use-property-inheritance
+                        org-tags-exclude-from-inheritance))
            (before (mapcar #'symbol-value variables)))
       (agile-gtd-enable)
       (should-not org-edna-mode)

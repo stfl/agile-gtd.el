@@ -86,6 +86,7 @@ This is a single-file Emacs Lisp package (`agile-gtd.el`) with eight companion t
 **Org settings** (`agile-gtd--apply-org-settings`, behind `agile-gtd-enable-org-settings`, default t)
 - Runs first in `agile-gtd-refresh`: turns on `org-edna-mode`, adds `org-habit` to `org-modules`, removes Org's own enforce blockers from `org-blocker-hook`, and `set-default`s every pair in `agile-gtd--org-settings`
 - `set-default`, not `setq`: a refresh run from an Org buffer whose startup options made a variable local must not change that buffer alone
+- `agile-gtd--apply-loop-tags` merges `agile-gtd-loop-tags` into `org-tags-exclude-from-inheritance` rather than setting it: it takes out only what the previous refresh added (`agile-gtd--loop-tags-excluded`, as the org-records-mcp view names are tracked) and never records a tag the user had excluded first
 - `org-archive-location` derives from `org-directory` through `agile-gtd--expand-org-path`; values that follow from agile-gtd's own configuration are derived, never hard-coded
 - Blocked tasks are hidden globally (`org-agenda-dim-blocked-tasks` `invisible`); the area commands (`agile-gtd--area-agenda-command`) and the `pb`/`wb` backlogs dim them with a command-level setting, because `org-agenda-finalize` sees only command settings, never a block's
 - A setting added here goes into both test sandboxes and into [docs/org-settings.org](docs/org-settings.org), with its reason
