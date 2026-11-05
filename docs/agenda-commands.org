@@ -5,31 +5,33 @@ grouped block is ordered. Back to the [[file:../README.org][README]].
 
 The package installs a set of agenda commands under =org-agenda-custom-commands=:
 
-| Key  | Name                     | Description                                     |
-|------+--------------------------+-------------------------------------------------|
-| =i=    | Inbox                    | Unprocessed inbox items grouped by creation date |
-| =a=    | Main Agenda              | Unified daily view: all contexts, priority-grouped |
-| =h=    | My Moves                 | Your moves, the agent's, and its work, by rank   |
-| =A=    | Agenda Weekly            | Standard week view                               |
-| =l=    | Agenda Weekly with Log   | Week view with closed-item log                   |
-| =r=    | Review                   | Prefix for review commands                       |
-| =rc=   | Close open actions       | All active NEXT/WAIT within 30 days              |
-| =rs=   | Stuck Projects           | PROJ/EPIC with no open PROJ/EPIC/NEXT/WAIT child |
-| =rt=   | Tangling TODOs           | Actions orphaned under completed ancestors       |
-| =rS=   | SOMEDAY                  | Low-priority and deferred projects               |
-| =p=    | Private                  | Prefix for private (non-work) commands           |
-| =pp=   | Private Agenda Today     | Daily view filtered to non-work items            |
-| =pb=   | Private Backlog          | Backlog filtered to non-work                     |
-| =ps=   | Private Stuck Projects   | Stuck projects filtered to non-work              |
-| =w=    | Work                     | Prefix for work commands                         |
-| =ww=   | Work Agenda Today        | Daily view filtered to =#work= items               |
-| =wb=   | Work Backlog             | Backlog filtered to =#work=                        |
-| =ws=   | Work Stuck Projects      | Stuck projects filtered to =#work=                 |
-| =w<key>= | /Project/ Agenda        | Per-project daily view (auto-generated)          |
+| Key      | Name                             | Description                                                        |
+|----------+----------------------------------+--------------------------------------------------------------------|
+| =i=      | Inbox                            | Unprocessed inbox items grouped by creation date                   |
+| =a=      | Main Agenda                      | Unified daily view: all contexts, priority-grouped                 |
+| =h=      | My Moves                         | Your moves, the agent's, and its work, by rank                     |
+| =A=      | Agenda Weekly                    | Standard week view                                                 |
+| =l=      | Agenda Weekly with Log           | Week view with closed-item log                                     |
+| =r=      | Review                           | Prefix for review commands                                         |
+| =rc=     | Close open actions               | All active NEXT/WAIT within 30 days, then stuck projects and epics |
+| =rs=     | Stuck Projects and Epics         | PROJ, then EPIC, with no open PROJ/EPIC/NEXT/WAIT child            |
+| =rt=     | Tangling TODOs                   | Actions orphaned under completed ancestors                         |
+| =rS=     | SOMEDAY                          | Low-priority and deferred projects                                 |
+| =p=      | Private                          | Prefix for private (non-work) commands                             |
+| =pp=     | Private Agenda Today             | Daily view filtered to non-work items                              |
+| =pb=     | Private Backlog                  | Backlog filtered to non-work                                       |
+| =ps=     | Private Stuck Projects and Epics | Stuck projects and epics filtered to non-work                      |
+| =w=      | Work                             | Prefix for work commands                                           |
+| =ww=     | Work Agenda Today                | Daily view filtered to =#work= items                               |
+| =wb=     | Work Backlog                     | Backlog filtered to =#work=                                        |
+| =ws=     | Work Stuck Projects and Epics    | Stuck projects and epics filtered to =#work=                       |
+| =w<key>= | /Project/ Agenda                 | Per-project daily view (auto-generated)                            |
 
 The composite daily views (=a=, =pp=, =ww=, =w<key>=) show three blocks in order:
 1. Agenda (today's scheduled, deadlined, and time-grid items, and warnings for any deadline within two days)
-2. Stuck Projects (flat list, no grouping)
+2. Stuck Projects (flat list, no grouping): stuck =PROJ= only. A stuck epic
+   is a planning gap, not today's work; =rs=, =ps=, =ws= and =rc= list it
+   under Stuck Epics
 3. Next Actions (grouped by ancestor priority)
 
 All three blocks are filtered consistently: =pp= excludes =#work= items, =ww=
@@ -59,13 +61,13 @@ documented in [[file:view-ranges.org][View Ranges]].
 
 Next Actions and Backlog blocks are grouped by rank, top to bottom:
 
-| Group                | Holds |
-|----------------------+-------|
-| =Today & Overdue=    | Anything due or already past its date |
-| =[#A]= .. =[#I]=     | One heading per priority band, with =Default Priority= sitting where an item carrying no cookie ranks |
-| =Scheduled=          | Work waiting on a day later than today |
-| =Tickler=            | SOMEDAY items with a =SCHEDULED= date |
-| =Someday=            | The rest of the parked work |
+| Group             | Holds                                                                                                 |
+|-------------------+-------------------------------------------------------------------------------------------------------|
+| =Today & Overdue= | Anything due or already past its date                                                                 |
+| =[#A]= .. =[#I]=  | One heading per priority band, with =Default Priority= sitting where an item carrying no cookie ranks |
+| =Scheduled=       | Work waiting on a day later than today                                                                |
+| =Tickler=         | SOMEDAY items with a =SCHEDULED= date                                                                 |
+| =Someday=         | The rest of the parked work                                                                           |
 
 The priorities come first because they are the work actually on offer.
 Everything below them is on screen for a different reason — a date has not

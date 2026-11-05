@@ -294,7 +294,7 @@ something a band would otherwise swallow."
 (ert-deftest agile-gtd-query-helpers-return-stable-sexps ()
   (agile-gtd-test-with-sandbox
     (should (equal (agile-gtd-agenda-query-stuck-projects)
-                   '(agile-gtd-stuck-proj)))
+                   '(agile-gtd-stuck)))
     (should (equal (agile-gtd-action-keywords)
                    '("NEXT" "WAIT")))
     (should (equal (agile-gtd-project-keyword) "PROJ"))))

@@ -253,12 +253,16 @@ Runs the query once with preambles enabled and once with them disabled."
     (agile-gtd-org-ql-test-with-data
      (agile-gtd-org-ql-test-assert-query
       buffer
-      '(agile-gtd-stuck-proj)
+      '(agile-gtd-stuck)
       '("Stuck project" "Stuck epic" "Nested stuck epic"))
      (agile-gtd-org-ql-test-assert-query
       buffer
-      '(agile-gtd-stuck)
-      '("Stuck project" "Stuck epic" "Nested stuck epic"))
+      '(agile-gtd-stuck-proj)
+      '("Stuck project"))
+     (agile-gtd-org-ql-test-assert-query
+      buffer
+      '(agile-gtd-stuck-epic)
+      '("Stuck epic" "Nested stuck epic"))
      (agile-gtd-org-ql-test-assert-query
       buffer
       '(and (agile-gtd-stuck) (heading "Project with sub-project"))

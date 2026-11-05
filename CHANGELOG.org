@@ -2,6 +2,18 @@
 
 * Unreleased
 
+** Stuck epics leave the daily agendas
+
+The daily area agendas (=a=, =pp=, =ww=, =w<key>=) list stuck projects only.
+=rs=, =ps=, =ws= and =rc= list stuck projects and stuck epics in two blocks,
+Stuck Projects and Stuck Epics, and the org-records-mcp =stuck= views return
+both as before. ~agile-gtd-stuck-proj~ matches stuck =PROJ= headings only and
+is no longer an alias of ~agile-gtd-stuck~, which still matches both; the new
+~agile-gtd-stuck-epic~ matches stuck =EPIC= headings.
+~agile-gtd-agenda-query-stuck-projects~ takes an optional KIND, =proj= or
+=epic=; without it the query matches both, where it matched through
+~agile-gtd-stuck-proj~ before.
+
 ** Every state past capture is logged
 
 The default ~agile-gtd-todo-keywords~ logs each move into the =LOGBOOK=:

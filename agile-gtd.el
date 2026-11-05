@@ -365,9 +365,13 @@ removes the advice."
   "Return the GTD project keyword."
   "PROJ")
 
+(defun agile-gtd--epic-keyword ()
+  "Return the GTD epic keyword."
+  "EPIC")
+
 (defun agile-gtd--container-keywords ()
   "Return the GTD keywords of headings that hold other work: projects and epics."
-  (list (agile-gtd--project-keyword) "EPIC"))
+  (list (agile-gtd--project-keyword) (agile-gtd--epic-keyword)))
 
 (defun agile-gtd--wait-keyword ()
   "Return the GTD keyword of an item waiting on someone or something."
@@ -992,12 +996,28 @@ show what has been set aside — brings it back."
                            (not (scheduled :from +1)))))))
     (if tag-filter `(and ,base ,tag-filter) base)))
 
-(defun agile-gtd-agenda-query-stuck-projects (&optional tag-filter)
-  "Return org-ql sexp for stuck projects.
-TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag."
-  (if tag-filter
-      `(and (agile-gtd-stuck-proj) ,tag-filter)
-    '(agile-gtd-stuck-proj)))
+(defconst agile-gtd--stuck-kinds
+  '((nil . agile-gtd-stuck)
+    (proj . agile-gtd-stuck-proj)
+    (epic . agile-gtd-stuck-epic))
+  "Each kind `agile-gtd-agenda-query-stuck-projects' takes, with its predicate.")
+
+(defun agile-gtd-agenda-query-stuck-projects (&optional tag-filter kind)
+  "Return org-ql sexp for stuck projects and epics.
+TAG-FILTER, when non-nil, is `and'-ed in to narrow by tag.  KIND narrows by
+heading keyword: `proj' for projects, `epic' for epics, nil for both."
+  (let ((stuck (list (or (alist-get kind agile-gtd--stuck-kinds)
+                         (error "Unknown stuck kind: %S" kind)))))
+    (if tag-filter `(and ,stuck ,tag-filter) stuck)))
+
+(defun agile-gtd--agenda-stuck-blocks (&optional tag-filter)
+  "Return the Stuck Projects and Stuck Epics blocks, narrowed by TAG-FILTER."
+  (mapcar (lambda (kind)
+            `(org-ql-block ',(agile-gtd-agenda-query-stuck-projects tag-filter (car kind))
+                           ((org-ql-block-header ,(cdr kind))
+                            (org-super-agenda-header-separator "")
+                            (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
+          '((proj . "Stuck Projects") (epic . "Stuck Epics"))))
 
 ;; A ranged block carries a live call rather than a `',(...)' of an
 ;; already-built query, because `org-agenda-run-series' evaluates both the
@@ -1109,13 +1129,14 @@ block it mirrors cannot answer differently."
 
 (defun agile-gtd--area-agenda-command (area)
   "Return the agenda command of AREA: its day, stuck projects and next actions.
+Stuck epics stay out of it; the stuck commands list them.
 The next-actions block opens at the area\\='s `:next-range' and hides what
 the day block above it already carries."
   (let ((filter (plist-get area :filter))
         (range (plist-get area :next-range)))
     `(,@(plist-get area :command)
       (,(agile-gtd--agenda-day (plist-get area :day-filter))
-       (org-ql-block ',(agile-gtd-agenda-query-stuck-projects filter)
+       (org-ql-block ',(agile-gtd-agenda-query-stuck-projects filter 'proj)
                      ((org-ql-block-header "Stuck Projects")
                       (org-super-agenda-header-separator "")))
        (agile-gtd-agenda-ql-block (agile-gtd-agenda-query-next-actions
@@ -1194,15 +1215,9 @@ the day block above it already carries."
                      (org-deadline-warning-days 30)
                      (org-super-agenda-groups ',(agile-gtd-rank-groups))
                      (org-ql-block-header "Something to do")))
-      (org-ql-block (agile-gtd-agenda-query-stuck-projects)
-                    ((org-ql-block-header "Stuck Projects")
-                     (org-super-agenda-header-separator "")
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
-    ("rs" "Stuck Projects"
-     ((org-ql-block '(agile-gtd-stuck-proj)
-                    ((org-ql-block-header "Stuck Projects")
-                     (org-super-agenda-header-separator "")
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
+      ,@(agile-gtd--agenda-stuck-blocks)))
+    ("rs" "Stuck Projects and Epics"
+     ,(agile-gtd--agenda-stuck-blocks))
     ("rt" "Tangling TODOs"
      ((org-ql-block '(agile-gtd-tangling)
                     ((org-ql-block-header "Tangling TODOs")
@@ -1236,11 +1251,8 @@ the day block above it already carries."
                       (agile-gtd--agenda-block-header "Backlog" 'all))
                      (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
      ((org-agenda-dim-blocked-tasks t)))
-    ("ps" "Private Stuck Projects"
-     ((org-ql-block ',(agile-gtd-agenda-query-stuck-projects '(agile-gtd-private))
-                    ((org-ql-block-header "Stuck Projects")
-                     (org-super-agenda-header-separator "")
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
+    ("ps" "Private Stuck Projects and Epics"
+     ,(agile-gtd--agenda-stuck-blocks '(agile-gtd-private)))
     ("w" . "Work")
     ,(agile-gtd--area-agenda-command (agile-gtd--area "work"))
     ("wb" "Work Backlog"
@@ -1250,11 +1262,8 @@ the day block above it already carries."
                       (agile-gtd--agenda-block-header "Backlog" 'all))
                      (org-super-agenda-groups ',(agile-gtd-rank-groups)))))
      ((org-agenda-dim-blocked-tasks t)))
-    ("ws" "Work Stuck Projects"
-     ((org-ql-block ',(agile-gtd-agenda-query-stuck-projects '(agile-gtd-work))
-                    ((org-ql-block-header "Stuck Projects")
-                     (org-super-agenda-header-separator "")
-                     (org-super-agenda-groups ',(agile-gtd-rank-groups))))))
+    ("ws" "Work Stuck Projects and Epics"
+     ,(agile-gtd--agenda-stuck-blocks '(agile-gtd-work)))
     ,@(agile-gtd--project-agenda-commands)))
 
 (defun agile-gtd--agenda-someday-p ()
@@ -1407,14 +1416,32 @@ where someone is heading, not stations on a loop to be passed through."
   :normalizers ((`(,predicate-names)
                  (rec `(not (tags ,agile-gtd-work-tag))))))
 
-(org-ql-defpred (agile-gtd-stuck-proj agile-gtd-stuck) ()
-  "Match stuck projects and epics: no open PROJ, EPIC or NEXT/WAIT child."
+(defun agile-gtd--stuck-query (keywords)
+  "Return the org-ql sexp matching stuck headings whose state is in KEYWORDS.
+A heading is stuck when it has no open PROJ, EPIC or NEXT/WAIT child and is
+neither SOMEDAY nor a tickler project."
+  `(and (todo ,@keywords)
+        (not (tags ,agile-gtd-someday-tag))
+        (not (children (todo ,@(agile-gtd--container-keywords)
+                             ,@(agile-gtd--action-keywords))))
+        (not (agile-gtd-tickler-proj))))
+
+(org-ql-defpred agile-gtd-stuck ()
+  "Match stuck projects and epics."
   :normalizers ((`(,predicate-names)
-                 (rec `(and (todo ,@(agile-gtd--container-keywords))
-                            (not (tags ,agile-gtd-someday-tag))
-                            (not (children (todo ,@(agile-gtd--container-keywords)
-                                                 ,@(agile-gtd--action-keywords))))
-                            (not (agile-gtd-tickler-proj)))))))
+                 (rec (agile-gtd--stuck-query (agile-gtd--container-keywords))))))
+
+(org-ql-defpred agile-gtd-stuck-proj ()
+  "Match stuck projects."
+  :normalizers ((`(,predicate-names)
+                 (rec (agile-gtd--stuck-query
+                       (list (agile-gtd--project-keyword)))))))
+
+(org-ql-defpred agile-gtd-stuck-epic ()
+  "Match stuck epics."
+  :normalizers ((`(,predicate-names)
+                 (rec (agile-gtd--stuck-query
+                       (list (agile-gtd--epic-keyword)))))))
 
 (org-ql-defpred agile-gtd-standalone-next ()
   "Match standalone NEXT and WAIT items."
