@@ -7,7 +7,9 @@ The package exposes org-ql predicates for the workflow's core concepts:
 
 | Predicate                   | Meaning                                                                                                                                        |
 |-----------------------------+------------------------------------------------------------------------------------------------------------------------------------------------|
-| =agile-gtd-stuck=           | project or epic with no open PROJ/EPIC/NEXT/WAIT child (alias =agile-gtd-stuck-proj=)                                                          |
+| =agile-gtd-stuck=           | project or epic with no open PROJ/EPIC/NEXT/WAIT child                                                                                         |
+| =agile-gtd-stuck-proj=      | the same, projects (=PROJ=) only                                                                                                               |
+| =agile-gtd-stuck-epic=      | the same, epics (=EPIC=) only                                                                                                                  |
 | =agile-gtd-standalone-next= | NEXT/WAIT without a project ancestor                                                                                                           |
 | =agile-gtd-tickler=         | deferred item with SOMEDAY + SCHEDULED                                                                                                         |
 | =agile-gtd-tickler-proj=    | project wholly parked in the tickler                                                                                                           |

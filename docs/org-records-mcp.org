@@ -41,7 +41,7 @@ one, and =stuck=. With three projects registered — say =alpha=, =beta= and
 | =work-backlog=        | the work backlog at every priority, blocked items included     |
 | =beta-backlog-sprint= | the high-priority part of one project's backlog                |
 | =backlog-someday=     | the whole backlog with SOMEDAY items, ticklers and future work |
-| =work-stuck=          | work projects without a next action, for the weekly review     |
+| =work-stuck=          | work projects and epics without a next action, for the review  |
 | =tangling=            | open leftovers under finished parents                          |
 | =human-turn=          | what waits on the human: the human's moves in the agent loop   |
 | =agent-turn=          | what waits on the agent: its moves, of every kind              |
@@ -57,7 +57,7 @@ one, and =stuck=. With three projects registered — say =alpha=, =beta= and
   blocked ones included, habits left out. Outside =someday=, SOMEDAY items,
   ticklers and work scheduled after today are left out.
 - =stuck=: projects and epics with no open =PROJ= / =EPIC= / =NEXT= / =WAIT=
-  child, as in the Stuck Projects block.
+  child, as in the Stuck Projects and Stuck Epics blocks of =rs=.
 - =inbox=: open items carrying one of =agile-gtd-inbox-tags=.
 - =tangling=: open items under a finished ancestor.
 - =human-turn=, =agent-turn= and =agent-wait=: the three turns of the agent
@@ -88,15 +88,15 @@ that list rather than setting it.
 
 On every refresh, unless =agile-gtd-enable-org-records-mcp= is nil:
 
-| Variable                                  | Set to                                                                 |
-|-------------------------------------------+------------------------------------------------------------------------|
-| =org-records-mcp-views=                   | the keys, merged by name; views under other names stay                 |
-| =org-records-mcp-computed-fields=         | =rank= and =parent-priority=, merged by name                           |
-| =org-records-mcp-list-computed-fields=    | =rank= added, so a result carries it unasked                           |
-| =org-records-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator                           |
-| =org-records-mcp-view-catalogue-function= | the key grammar, in place of one line per key                          |
-| =org-records-mcp-allowed-files=           | nil, so views run over =org-agenda-files=                              |
-| =org-records-mcp-file-scope-override=     | t, so a call may name any Org file                                     |
+| Variable                                  | Set to                                                 |
+|-------------------------------------------+--------------------------------------------------------|
+| =org-records-mcp-views=                   | the keys, merged by name; views under other names stay |
+| =org-records-mcp-computed-fields=         | =rank= and =parent-priority=, merged by name           |
+| =org-records-mcp-list-computed-fields=    | =rank= added, so a result carries it unasked           |
+| =org-records-mcp-query-sort-fn=           | =agile-gtd--item-rank<=, the rank comparator           |
+| =org-records-mcp-view-catalogue-function= | the key grammar, in place of one line per key          |
+| =org-records-mcp-allowed-files=           | nil, so views run over =org-agenda-files=              |
+| =org-records-mcp-file-scope-override=     | t, so a call may name any Org file                     |
 
 A key belonging to a project that left the registry goes with it. With the
 flag off, agile-gtd leaves every org-records-mcp variable as it is.

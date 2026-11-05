@@ -136,13 +136,18 @@ range where its cutoff priority\='s group does."
     (should (eq 'and (car filtered)))))
 
 (ert-deftest agile-gtd-agenda-query-stuck-projects-with-and-without-filter ()
-  "Stuck projects query supports optional tag-filter."
+  "Stuck projects query supports optional tag-filter and kind."
   (should (equal (agile-gtd-agenda-query-stuck-projects)
-                 '(agile-gtd-stuck-proj)))
+                 '(agile-gtd-stuck)))
   (should (equal (agile-gtd-agenda-query-stuck-projects '(agile-gtd-work))
-                 '(and (agile-gtd-stuck-proj) (agile-gtd-work))))
+                 '(and (agile-gtd-stuck) (agile-gtd-work))))
   (should (equal (agile-gtd-agenda-query-stuck-projects '(agile-gtd-private))
-                 '(and (agile-gtd-stuck-proj) (agile-gtd-private)))))
+                 '(and (agile-gtd-stuck) (agile-gtd-private))))
+  (should (equal (agile-gtd-agenda-query-stuck-projects nil 'proj)
+                 '(agile-gtd-stuck-proj)))
+  (should (equal (agile-gtd-agenda-query-stuck-projects '(agile-gtd-work) 'epic)
+                 '(and (agile-gtd-stuck-epic) (agile-gtd-work))))
+  (should-error (agile-gtd-agenda-query-stuck-projects nil 'task)))
 
 ;;; Area-filter tests — use simpler org-ql queries that work in batch
 
@@ -438,6 +443,11 @@ With the stock configuration those cutoffs are C for `sprint', E for
             "* NEXT [#C] Medium priority action\n\n"
             "* PROJ Stuck project\n"
             "** TODO Notes only\n\n"
+            ;; Stuck epics: listed by the stuck views, never by the area days.
+            "* EPIC Idle private epic\n"
+            "** TODO Notes only\n\n"
+            "* EPIC Idle work epic :#work:\n"
+            "** TODO Notes only\n\n"
             ;; Scheduled today: appears in day block but NOT in Next Actions
             ;; (excluded by `not (scheduled)').  No work tag → private only.
             "* NEXT [#B] Scheduled today\n"
@@ -619,6 +629,37 @@ The section runs from the header to the rule that starts the next block."
   (agile-gtd-agenda-test-build-view "rs"
     (should (string-match-p "Stuck Projects" agenda-text))
     (should (string-match-p "Stuck project" agenda-text))))
+
+(ert-deftest agile-gtd-agenda-area-views-leave-out-stuck-epics ()
+  "The daily area agendas list stuck projects but no stuck epic."
+  (dolist (key '("a" "pp" "ww"))
+    (ert-info ((format "command=%s" key))
+      (agile-gtd-agenda-test-build-view key
+        (should-not (string-match-p "Stuck Epics" agenda-text))
+        (should-not (string-match-p "Idle private epic" agenda-text))
+        (should-not (string-match-p "Idle work epic" agenda-text))))))
+
+(ert-deftest agile-gtd-agenda-stuck-views-list-epics-apart ()
+  "The stuck views list stuck epics in a block of their own.
+An empty org-ql block drops its header, so the work views, which have no
+stuck project in the fixture, show no Stuck Projects block."
+  (dolist (case '(("rs" ("Idle private epic" "Idle work epic") nil)
+                  ("ps" ("Idle private epic") ("Idle work epic"))
+                  ("ws" ("Idle work epic") ("Idle private epic"))
+                  ("rc" ("Idle private epic" "Idle work epic") nil)))
+    (pcase-let ((`(,key ,shown ,hidden) case))
+      (ert-info ((format "command=%s" key))
+        (agile-gtd-agenda-test-build-view key
+          (let ((projects (agile-gtd-agenda-test-block-section
+                           agenda-text "Stuck Projects"))
+                (epics (agile-gtd-agenda-test-block-section
+                        agenda-text "Stuck Epics")))
+            (should epics)
+            (dolist (title shown)
+              (should (string-match-p title epics))
+              (should-not (and projects (string-match-p title projects))))
+            (dolist (title hidden)
+              (should-not (string-match-p title agenda-text)))))))))
 
 (ert-deftest agile-gtd-agenda-private-view-sections-populated ()
   "Private Agenda ('pp') contains private items in all its blocks."

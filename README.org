@@ -117,7 +117,7 @@ Put your tasks in =todo.org= and =inbox.org= under =org-directory=, then:
 #+end_src
 
 Run =M-x org-agenda=, then =a= for the Main Agenda, =i= for the inbox or =rs=
-for stuck projects. =agile-gtd-agenda-wider-range= and =agile-gtd-agenda-narrower-range=
+for stuck projects and epics. =agile-gtd-agenda-wider-range= and =agile-gtd-agenda-narrower-range=
 change the range of the open agenda; bind them to keys of your choice.
 
 To split work by client or team, register a tag per project:
